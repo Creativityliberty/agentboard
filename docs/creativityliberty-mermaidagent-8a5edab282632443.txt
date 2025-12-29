@@ -1,0 +1,893 @@
+Directory structure:
+└── creativityliberty-mermaidagent/
+    ├── README.md
+    ├── App.tsx
+    ├── index.html
+    ├── index.tsx
+    ├── metadata.json
+    ├── package.json
+    ├── tsconfig.json
+    ├── types.ts
+    ├── vite.config.ts
+    ├── components/
+    │   ├── ChatInterface.tsx
+    │   ├── CodeEditor.tsx
+    │   └── MermaidPreview.tsx
+    └── services/
+        └── geminiService.ts
+
+================================================
+FILE: README.md
+================================================
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/drive/1wEsptXqoU4V-SeQj2e_ToG27e_fy2PGD
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
+
+
+
+================================================
+FILE: App.tsx
+================================================
+import React, { useState, useCallback, useEffect } from 'react';
+import { PanelLeft, PanelRight, MessageSquare, AlertTriangle, Key, Sparkles, Wrench } from 'lucide-react';
+import { CodeEditor } from './components/CodeEditor';
+import { MermaidPreview } from './components/MermaidPreview';
+import { ChatInterface } from './components/ChatInterface';
+import { DEFAULT_CODE, Message } from './types';
+import { sendMessageToGemini } from './services/geminiService';
+
+const App: React.FC = () => {
+  const [code, setCode] = useState<string>(DEFAULT_CODE);
+  const [error, setError] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState<boolean>(true);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
+  
+  // Auth state
+  const [hasKey, setHasKey] = useState<boolean>(false);
+  const [isKeyChecking, setIsKeyChecking] = useState<boolean>(true);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      if (window.aistudio) {
+        try {
+            const has = await window.aistudio.hasSelectedApiKey();
+            setHasKey(has);
+        } catch (e) {
+            console.error(e);
+            setHasKey(false);
+        }
+      } else {
+        // Fallback for dev environments without the wrapper
+        // defaulting to true allows usage if env vars are hardcoded, 
+        // but strictly following instructions we might default false.
+        // Assuming strict environment adherence:
+        setHasKey(false); 
+      }
+      setIsKeyChecking(false);
+    };
+    checkKey();
+  }, []);
+
+  const handleConnectKey = async () => {
+    if (window.aistudio) {
+        try {
+            await window.aistudio.openSelectKey();
+            // Assume success after closing dialog to avoid race condition
+            setHasKey(true);
+        } catch (e) {
+            console.error("Key selection failed", e);
+        }
+    }
+  };
+
+  // Handle successful render
+  const handleRenderSuccess = useCallback(() => {
+    setError(null);
+  }, []);
+
+  // Handle render error
+  const handleRenderError = useCallback((err: string) => {
+    setError(err);
+  }, []);
+
+  // Send message to Gemini
+  const handleSendMessage = async (text: string) => {
+    const userMessage: Message = {
+      role: 'user',
+      text: text,
+      timestamp: Date.now(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setIsAiLoading(true);
+
+    try {
+      const response = await sendMessageToGemini(messages, code, text);
+      
+      const aiMessage: Message = {
+        role: 'model',
+        text: response.text,
+        codeBlock: response.codeBlock,
+        timestamp: Date.now(),
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+    } catch (e: any) {
+      console.error(e);
+      if (e.message === "KEY_ERROR") {
+         setHasKey(false);
+         // Prompt user in chat as well
+         setMessages((prev) => [...prev, { role: 'model', text: 'Authentication failed. Please select a valid API Key to continue.', timestamp: Date.now() }]);
+         // Attempt to open key selector immediately
+         if (window.aistudio) {
+             try {
+                await window.aistudio.openSelectKey();
+                setHasKey(true);
+             } catch(err) {
+                // User might have cancelled
+             }
+         }
+      } else {
+         setMessages((prev) => [...prev, { role: 'model', text: 'Sorry, I faced an error.', timestamp: Date.now() }]);
+      }
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleFixSyntax = () => {
+    if (!error) return;
+    const prompt = `Please fix the following Mermaid syntax error in the code:
+${error}
+
+Analyze the code around the reported line. Ensure all node labels containing parentheses (e.g., "(Text)"), brackets, or special characters are enclosed in double quotes (e.g., id["Label (Text)"]).`;
+    
+    // Open chat if closed so user sees the fix process
+    if (!isChatOpen) setIsChatOpen(true);
+    
+    handleSendMessage(prompt);
+  };
+
+  const handleApplyCode = (newCode: string) => {
+    setCode(newCode);
+  };
+
+  if (isKeyChecking) {
+     return (
+        <div className="h-screen w-screen bg-[#0f172a] flex items-center justify-center text-slate-500">
+            <div className="animate-pulse flex flex-col items-center">
+                <div className="w-8 h-8 bg-slate-700 rounded-full mb-2"></div>
+                <div className="text-sm font-mono">Initializing...</div>
+            </div>
+        </div>
+     );
+  }
+
+  if (!hasKey) {
+      return (
+        <div className="h-screen w-screen bg-[#0f172a] flex flex-col items-center justify-center text-slate-200 p-4">
+            <div className="max-w-md w-full bg-[#1e293b] p-8 rounded-2xl shadow-2xl border border-slate-700 text-center relative overflow-hidden">
+                {/* Decorative background glow */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
+                
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/20">
+                     <span className="text-3xl font-bold text-white">M</span>
+                </div>
+                
+                <h1 className="text-2xl font-bold mb-2 text-white">Mermaid Architect</h1>
+                <p className="text-slate-400 mb-8 leading-relaxed">
+                    Access advanced Gemini 3.0 Pro models to generate and analyze diagrams. Please select a valid Google Cloud Project API key to continue.
+                </p>
+                
+                <button 
+                    onClick={handleConnectKey}
+                    className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-all transform hover:translate-y-[-1px] active:translate-y-[1px] shadow-lg shadow-blue-900/30 flex items-center justify-center gap-2 group"
+                >
+                    <Key size={18} className="group-hover:rotate-12 transition-transform" />
+                    <span>Connect API Key</span>
+                </button>
+                
+                <div className="mt-6 text-xs text-slate-500">
+                    <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="underline hover:text-slate-400 transition-colors">
+                        View Billing Documentation
+                    </a>
+                </div>
+            </div>
+        </div>
+      );
+  }
+
+  return (
+    <div className="h-screen w-screen flex flex-col bg-[#0f172a] text-slate-200 overflow-hidden">
+      {/* Header */}
+      <header className="h-14 border-b border-slate-700 bg-[#1e293b] flex items-center justify-between px-6 shrink-0 z-20">
+        <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/10">
+                M
+            </div>
+            <h1 className="font-bold text-lg tracking-tight text-slate-100">Mermaid Architect</h1>
+        </div>
+        <div className="flex items-center gap-4">
+            {error && (
+                 <div className="flex items-center gap-2 bg-red-400/10 border border-red-400/20 rounded-lg px-3 py-1 animate-fadeIn">
+                    <div className="flex items-center gap-2 text-red-400 text-sm">
+                        <AlertTriangle size={14} className="shrink-0" />
+                        <span className="truncate max-w-[150px] md:max-w-[400px] text-xs font-mono" title={error}>{error}</span>
+                    </div>
+                    <button
+                        onClick={handleFixSyntax}
+                        disabled={isAiLoading}
+                        className="ml-2 px-2 py-0.5 bg-red-500/80 hover:bg-red-500 text-white text-xs rounded shadow-sm transition-all flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed border border-red-400/30"
+                        title="Attempt to fix syntax with AI"
+                    >
+                        <Wrench size={10} />
+                        <span className="font-medium">Auto-Fix</span>
+                    </button>
+                </div>
+            )}
+            <button 
+                onClick={() => setIsChatOpen(!isChatOpen)}
+                className={`p-2 rounded-lg transition-all duration-200 ${isChatOpen ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'hover:bg-slate-700 text-slate-400'}`}
+                title={isChatOpen ? "Close AI Chat" : "Open AI Chat"}
+            >
+                <MessageSquare size={20} />
+            </button>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex overflow-hidden relative">
+        {/* Editor Pane */}
+        <div className="w-1/3 min-w-[300px] border-r border-slate-700 flex flex-col z-10 shadow-xl">
+            <CodeEditor code={code} onChange={setCode} />
+        </div>
+
+        {/* Preview Pane */}
+        <div className="flex-1 relative bg-[#1e293b]">
+            <MermaidPreview 
+                code={code} 
+                onError={handleRenderError} 
+                onSuccess={handleRenderSuccess} 
+            />
+        </div>
+
+        {/* Chat Drawer */}
+        <div 
+            className={`absolute right-0 top-0 bottom-0 z-20 bg-[#0f172a] transition-transform duration-300 ease-in-out border-l border-slate-700 shadow-2xl ${
+                isChatOpen ? 'translate-x-0' : 'translate-x-full'
+            }`}
+            style={{ width: '400px' }}
+        >
+            <ChatInterface 
+                messages={messages} 
+                onSendMessage={handleSendMessage} 
+                isLoading={isAiLoading}
+                onApplyCode={handleApplyCode}
+            />
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default App;
+
+
+================================================
+FILE: index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mermaid Pro Architect AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Custom Scrollbar for a 'Pro' feel */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #1e293b; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #475569; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #64748b; 
+      }
+      body {
+        background-color: #0f172a;
+        color: #e2e8f0;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "mermaid": "https://esm.sh/mermaid@^11.12.2",
+    "react-zoom-pan-pinch": "https://esm.sh/react-zoom-pan-pinch@^3.7.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+
+================================================
+FILE: index.tsx
+================================================
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
+}
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+
+
+================================================
+FILE: metadata.json
+================================================
+{
+  "name": "Mermaid Pro Architect AI",
+  "description": "An ultra-detailed Mermaid.js diagram builder and viewer featuring a context-aware Gemini AI that can generate, analyze, and modify diagrams in real-time.",
+  "requestFramePermissions": []
+}
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "mermaid-pro-architect-ai",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react-dom": "^19.2.3",
+    "@google/genai": "^1.33.0",
+    "react": "^19.2.3",
+    "lucide-react": "^0.561.0",
+    "mermaid": "^11.12.2",
+    "react-zoom-pan-pinch": "^3.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+
+
+
+================================================
+FILE: tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
+
+
+================================================
+FILE: types.ts
+================================================
+export interface Message {
+  role: 'user' | 'model';
+  text: string;
+  codeBlock?: string; // If the model suggests code, we parse it out
+  timestamp: number;
+  isThinking?: boolean;
+}
+
+export type DiagramType = 'flowchart' | 'sequence' | 'class' | 'state' | 'er' | 'gantt' | 'pie' | 'mindmap';
+
+export interface EditorState {
+  code: string;
+  error: string | null;
+}
+
+export const DEFAULT_CODE = `graph TD
+    A[Start] --> B{Is it working?}
+    B -- Yes --> C[Great!]
+    B -- No --> D[Debug]
+    D --> B`;
+
+declare global {
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+}
+
+
+
+================================================
+FILE: vite.config.ts
+================================================
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, '.', '');
+    return {
+      server: {
+        port: 3000,
+        host: '0.0.0.0',
+      },
+      plugins: [react()],
+      define: {
+        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      },
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+        }
+      }
+    };
+});
+
+
+
+================================================
+FILE: components/ChatInterface.tsx
+================================================
+import React, { useState, useRef, useEffect } from 'react';
+import { Send, Bot, User, Sparkles, Check, ArrowRight } from 'lucide-react';
+import { Message } from '../types';
+
+interface ChatInterfaceProps {
+  messages: Message[];
+  onSendMessage: (text: string) => void;
+  isLoading: boolean;
+  onApplyCode: (code: string) => void;
+}
+
+export const ChatInterface: React.FC<ChatInterfaceProps> = ({ messages, onSendMessage, isLoading, onApplyCode }) => {
+  const [input, setInput] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
+    onSendMessage(input);
+    setInput('');
+  };
+
+  return (
+    <div className="flex flex-col h-full bg-[#0f172a] border-l border-slate-700 w-full max-w-md">
+      <div className="p-4 border-b border-slate-700 flex items-center justify-between bg-[#1e293b]">
+        <div className="flex items-center gap-2">
+           <Sparkles className="text-purple-400" size={20} />
+           <h2 className="font-semibold text-slate-200">Gemini Architect</h2>
+        </div>
+        <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-slate-300">
+            Pro 3.0
+        </span>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+            <div className="text-center text-slate-500 mt-10">
+                <Bot size={48} className="mx-auto mb-4 opacity-50" />
+                <p>Ask me to generate, analyze, or modify your diagram.</p>
+                <p className="text-xs mt-2 text-slate-600">Try: "Make this a sequence diagram"</p>
+            </div>
+        )}
+        
+        {messages.map((msg, idx) => (
+          <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            <div
+              className={`max-w-[90%] rounded-lg p-3 text-sm ${
+                msg.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-br-none'
+                  : 'bg-slate-700 text-slate-200 rounded-bl-none'
+              }`}
+            >
+              <div className="whitespace-pre-wrap">{msg.text}</div>
+              
+              {msg.codeBlock && (
+                <div className="mt-3 p-2 bg-slate-800 rounded border border-slate-600 flex flex-col gap-2">
+                    <div className="text-xs text-slate-400 font-mono">Suggested Change</div>
+                    <div className="flex items-center gap-2">
+                        <button 
+                            onClick={() => onApplyCode(msg.codeBlock!)}
+                            className="flex-1 flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white py-1.5 px-3 rounded text-xs transition-colors font-medium"
+                        >
+                            <Check size={14} /> Apply to Editor
+                        </button>
+                    </div>
+                </div>
+              )}
+            </div>
+            <span className="text-[10px] text-slate-500 mt-1">
+                {msg.role === 'user' ? 'You' : 'Gemini'}
+            </span>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="flex items-start gap-2 animate-pulse">
+            <div className="bg-slate-700 p-3 rounded-lg rounded-bl-none">
+              <div className="flex gap-1">
+                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+              <span className="text-xs text-slate-400 mt-1 block">Thinking (32k)...</span>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <form onSubmit={handleSubmit} className="p-4 border-t border-slate-700 bg-[#1e293b]">
+        <div className="relative flex items-center">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Describe changes or ask questions..."
+            className="w-full bg-slate-900 border border-slate-600 text-slate-200 text-sm rounded-lg pl-4 pr-12 py-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+            disabled={isLoading}
+          />
+          <button
+            type="submit"
+            disabled={isLoading || !input.trim()}
+            className="absolute right-2 p-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+
+
+================================================
+FILE: components/CodeEditor.tsx
+================================================
+import React from 'react';
+
+interface CodeEditorProps {
+  code: string;
+  onChange: (value: string) => void;
+}
+
+export const CodeEditor: React.FC<CodeEditorProps> = ({ code, onChange }) => {
+  return (
+    <div className="h-full w-full bg-[#0f172a] flex flex-col font-mono text-sm relative">
+      <div className="absolute top-0 left-0 right-0 h-8 bg-[#1e293b] flex items-center px-4 text-xs text-slate-400 border-b border-slate-700 z-10">
+        MERMAID EDITOR
+      </div>
+      <textarea
+        value={code}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-full pt-10 p-4 bg-transparent text-emerald-400 resize-none focus:outline-none leading-relaxed"
+        spellCheck={false}
+        placeholder="Enter Mermaid code here..."
+      />
+    </div>
+  );
+};
+
+
+
+================================================
+FILE: components/MermaidPreview.tsx
+================================================
+import React, { useEffect, useRef, useState } from 'react';
+import mermaid from 'mermaid';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { ZoomIn, ZoomOut, RotateCcw, Download } from 'lucide-react';
+
+interface MermaidPreviewProps {
+  code: string;
+  onError: (error: string) => void;
+  onSuccess: () => void;
+}
+
+export const MermaidPreview: React.FC<MermaidPreviewProps> = ({ code, onError, onSuccess }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [svgContent, setSvgContent] = useState<string>('');
+  const [lastRenderTime, setLastRenderTime] = useState<number>(Date.now());
+
+  useEffect(() => {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: 'dark',
+      securityLevel: 'loose',
+      fontFamily: 'ui-sans-serif, system-ui, sans-serif',
+    });
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const renderDiagram = async () => {
+      if (!containerRef.current) return;
+
+      try {
+        const id = `mermaid-${Date.now()}`;
+        // Mermaid parses asynchronously
+        // mermaid.parse throws if syntax is invalid, but render also handles it.
+        // We allow render to do the heavy lifting.
+        const { svg } = await mermaid.render(id, code);
+        
+        if (isMounted) {
+          setSvgContent(svg);
+          onSuccess();
+          setLastRenderTime(Date.now());
+        }
+      } catch (error: any) {
+        if (isMounted) {
+          console.error("Mermaid Render Error", error);
+          
+          // Attempt to extract a friendly error message
+          let message = "Syntax Error: Please check your Mermaid syntax.";
+          if (error && typeof error.message === 'string') {
+             // Use the actual parser error if available (e.g. "Parse error on line X")
+             message = error.message; 
+             // Truncate really long internal stack traces if necessary, but Mermaid errors are usually concise start lines.
+             if (message.length > 150) message = message.substring(0, 150) + "...";
+          }
+          
+          onError(message);
+        }
+      }
+    };
+
+    // Debounce rendering
+    const timeoutId = setTimeout(() => {
+        renderDiagram();
+    }, 600);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [code, onError, onSuccess]);
+
+  const handleDownload = () => {
+     if (!svgContent) return;
+     const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+     const url = URL.createObjectURL(blob);
+     const link = document.createElement('a');
+     link.href = url;
+     link.download = `mermaid-diagram-${Date.now()}.svg`;
+     document.body.appendChild(link);
+     link.click();
+     document.body.removeChild(link);
+  };
+
+  return (
+    <div className="h-full w-full bg-[#1e293b] relative overflow-hidden flex flex-col">
+       {/* Toolbar */}
+       <div className="absolute top-4 right-4 z-20 flex gap-2">
+            <button onClick={handleDownload} className="p-2 bg-slate-700/80 backdrop-blur hover:bg-slate-600 rounded-md text-white transition-colors" title="Download SVG">
+                <Download size={18} />
+            </button>
+       </div>
+
+      <TransformWrapper
+        initialScale={1}
+        minScale={0.5}
+        maxScale={4}
+        centerOnInit={true}
+        wheel={{ step: 0.1 }}
+      >
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+             <div className="absolute bottom-4 left-4 z-20 flex gap-2">
+                <button onClick={() => zoomIn()} className="p-2 bg-slate-700/80 backdrop-blur hover:bg-slate-600 rounded-md text-white transition-colors">
+                    <ZoomIn size={18} />
+                </button>
+                <button onClick={() => zoomOut()} className="p-2 bg-slate-700/80 backdrop-blur hover:bg-slate-600 rounded-md text-white transition-colors">
+                    <ZoomOut size={18} />
+                </button>
+                 <button onClick={() => resetTransform()} className="p-2 bg-slate-700/80 backdrop-blur hover:bg-slate-600 rounded-md text-white transition-colors">
+                    <RotateCcw size={18} />
+                </button>
+            </div>
+            
+            <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full flex items-center justify-center">
+              <div 
+                ref={containerRef}
+                className="w-full h-full flex items-center justify-center p-8"
+                dangerouslySetInnerHTML={{ __html: svgContent }}
+              />
+            </TransformComponent>
+          </>
+        )}
+      </TransformWrapper>
+    </div>
+  );
+};
+
+
+================================================
+FILE: services/geminiService.ts
+================================================
+import { GoogleGenAI } from "@google/genai";
+import { Message } from "../types";
+
+// Note: GoogleGenAI is initialized inside the function to ensure it picks up
+// the latest process.env.API_KEY if the user switches keys.
+
+const SYSTEM_INSTRUCTION = `
+You are an expert Software Architect and Mermaid.js specialist.
+Your goal is to help the user build, debug, and optimize diagrams.
+
+RULES:
+1. You have access to the user's CURRENT diagram code.
+2. If the user asks for a modification, generate the FULL valid Mermaid.js code.
+3. ALWAYS wrap the Mermaid code in a markdown block like this:
+\`\`\`mermaid
+... code ...
+\`\`\`
+4. If the user asks a simple question, answer concisely.
+5. If the user asks for a complex diagram (e.g., "Map out a microservices architecture for E-commerce"), use your reasoning capabilities to create a detailed structure.
+6. SYNTAX SAFETY & BEST PRACTICES:
+   - CRITICAL: Enclose ALL node labels in double quotes if they contain spaces, parentheses '()', brackets '[]', or special characters.
+     Example: Use id["My Label (Draft)"] instead of id[My Label (Draft)].
+   - Verify that all arrows and connections are syntactically correct (e.g., -->, -.->, ==>, -- text -->).
+   - Ensure all subgraphs are properly closed with 'end'.
+`;
+
+export const sendMessageToGemini = async (
+  history: Message[],
+  currentCode: string,
+  userPrompt: string
+): Promise<{ text: string; codeBlock?: string }> => {
+  // Initialize the client per-request to ensure the latest API Key is used
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  try {
+    // Determine complexity to select model
+    // Simple heuristics: Short prompts or "explain" keywords = Lite. Creation/Modification = Pro.
+    const isComplex =
+      userPrompt.length > 50 ||
+      /create|generate|modify|fix|optimize|diagram|architecture/i.test(userPrompt);
+
+    const modelName = isComplex ? "gemini-3-pro-preview" : "gemini-2.5-flash";
+
+    // Configuration
+    const config: any = {
+      systemInstruction: SYSTEM_INSTRUCTION,
+    };
+
+    // Add thinking budget for Pro model
+    if (modelName === "gemini-3-pro-preview") {
+      config.thinkingConfig = { thinkingBudget: 32768 };
+    }
+
+    // Construct the context-aware prompt
+    const contextPrompt = `
+[CURRENT MERMAID CODE]:
+\`\`\`mermaid
+${currentCode}
+\`\`\`
+
+[USER REQUEST]:
+${userPrompt}
+`;
+
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: [
+        {
+            role: "user",
+            parts: [{ text: contextPrompt }]
+        }
+      ],
+      config: config,
+    });
+
+    const responseText = response.text || "";
+
+    // Extract code block if present
+    // Regex updated to handle cases where 'mermaid' might be followed immediately by code or newline
+    const codeBlockRegex = /```(?:mermaid)?\s*([\s\S]*?)```/;
+    const match = responseText.match(codeBlockRegex);
+    const codeBlock = match ? match[1].trim() : undefined;
+
+    return {
+      text: responseText.replace(codeBlockRegex, '[Updated Diagram Available]'), // Hide code from text bubble to avoid clutter
+      codeBlock,
+    };
+
+  } catch (error: any) {
+    console.error("Gemini API Error:", error);
+
+    // Check for "Requested entity was not found" which implies invalid API Key or Model access issue
+    // requiring a key re-selection.
+    const errStr = error.message || JSON.stringify(error);
+    if (errStr.includes("Requested entity was not found")) {
+        throw new Error("KEY_ERROR");
+    }
+
+    return {
+      text: "I encountered an error processing your request. Please try again.",
+    };
+  }
+};
+

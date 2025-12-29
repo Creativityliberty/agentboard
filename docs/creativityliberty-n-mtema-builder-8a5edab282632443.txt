@@ -1,0 +1,4370 @@
+Directory structure:
+└── creativityliberty-n-mtema-builder/
+    ├── README.md
+    ├── App.tsx
+    ├── index.html
+    ├── index.tsx
+    ├── metadata.json
+    ├── package.json
+    ├── tsconfig.json
+    ├── types.ts
+    ├── vite.config.ts
+    ├── components/
+    │   ├── OrgDashboard.tsx
+    │   ├── Sidebar.tsx
+    │   ├── tabs/
+    │   │   ├── FlowTab.tsx
+    │   │   ├── GeneralTab.tsx
+    │   │   ├── KnowledgeTab.tsx
+    │   │   ├── LLMTab.tsx
+    │   │   ├── ProjectSettingsTab.tsx
+    │   │   ├── PromptsTab.tsx
+    │   │   ├── TasksTab.tsx
+    │   │   ├── TeamTab.tsx
+    │   │   └── ToolsTab.tsx
+    │   └── ui/
+    │       ├── Button.tsx
+    │       ├── Card.tsx
+    │       ├── Input.tsx
+    │       └── Textarea.tsx
+    └── services/
+        ├── agentExportService.ts
+        └── geminiService.ts
+
+================================================
+FILE: README.md
+================================================
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/drive/1WB0-s3wc8lrV5tvxBsjkWJ9W6EMFnibp
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
+
+
+
+================================================
+FILE: App.tsx
+================================================
+
+import React, { useState, useEffect, useRef } from 'react';
+import { Organization, Project, TeamConfig, AgentConfig, LLMProvider, GeminiModel, TabId } from './types';
+import Sidebar from './components/Sidebar';
+import OrgDashboard from './components/OrgDashboard';
+import GeneralTab from './components/tabs/GeneralTab';
+import PromptsTab from './components/tabs/PromptsTab';
+import LLMTab from './components/tabs/LLMTab';
+import ToolsTab from './components/tabs/ToolsTab';
+import TasksTab from './components/tabs/TasksTab';
+import KnowledgeTab from './components/tabs/KnowledgeTab';
+import FlowTab from './components/tabs/FlowTab';
+import TeamTab from './components/tabs/TeamTab';
+import ProjectSettingsTab from './components/tabs/ProjectSettingsTab';
+import { Button } from './components/ui/Button';
+import { generateAgentRuntimeZip, generatePocketFlowPythonZip } from './services/agentExportService';
+
+const App: React.FC = () => {
+  // --- NAVIGATION STATE ---
+  const [activeTab, setActiveTab] = useState<TabId>('settings');
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // --- ORGANIZATION STATE ---
+  const [organization, setOrganization] = useState<Organization>({
+    id: 'org-1',
+    name: 'Nümtema Agency',
+    projects: [
+      {
+        id: 'proj-default',
+        name: 'Default Project',
+        description: 'Main agency operations crew.',
+        icon: "📁",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        teams: [
+          {
+            id: 'team-numtema-core',
+            name: 'Core Operations Crew',
+            description: 'A specialized team for digital agency operations.',
+            process: 'sequential',
+            tasks: [
+               {
+                id: "task-qualification-site-web",
+                name: "Qualification projet site web",
+                slug: "qualif_site_web",
+                description: "Qualifier un projet de création ou refonte de site web pour Nümtema.",
+                expectedOutput: "Un résumé structuré du besoin site web.",
+                tags: ["site_web", "qualification"],
+                agentId: "agent-leo-numtema", 
+                allowedTools: [],
+                asyncExecution: false,
+                humanReview: false,
+                markdown: true,
+                maxExecutionTime: 180,
+                maxRetries: 1,
+                outputFormat: "json"
+              }
+            ],
+            agents: [
+              {
+                id: 'agent-leo-numtema',
+                name: 'Léo',
+                slug: 'leo-numtema',
+                role: 'Lead Qualifier',
+                goal: 'Qualify incoming leads and route them to the right service.',
+                description: 'Assistant digital pour Nümtema Agency.',
+                language: 'fr',
+                status: 'active',
+                currentVersion: 1,
+                personaTone: 'Clair, direct, chaleureux',
+                emojiAllowed: true,
+                greeting: 'Bonjour 👋 Je suis Léo, l’assistant digital de Nümtema Agency.',
+                baseInstructions: 'Tu es Léo, l’assistant digital de Nümtema Agency...',
+                globalPrompts: [],
+                llm: {
+                  provider: LLMProvider.GOOGLE,
+                  model: GeminiModel.GEMINI_2_5_FLASH,
+                  apiKeyEnvVar: 'GEMINI_API_KEY',
+                  temperature: 0.7,
+                  maxTokens: 2048
+                },
+                tools: [],
+                knowledge: {
+                  sources: [],
+                  embedder: { provider: 'google', model: 'models/text-embedding-004' },
+                  chunkSize: 1000,
+                  overlap: 200,
+                  topKRetrieval: 3
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  });
+
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [activeTeamId, setActiveTeamId] = useState<string | null>(null);
+  const [activeAgentId, setActiveAgentId] = useState<string>("");
+
+  const activeProject = activeProjectId ? organization.projects.find(p => p.id === activeProjectId) : null;
+  const activeTeam = activeProject && activeTeamId ? activeProject.teams.find(t => t.id === activeTeamId) : (activeProject?.teams[0] || null);
+  const activeAgent = activeTeam ? (activeTeam.agents.find(a => a.id === activeAgentId) || activeTeam.agents[0]) : null;
+
+  // Initialize Team & Agent selection when project changes
+  useEffect(() => {
+    if (activeProject && !activeTeamId) {
+        if (activeProject.teams.length > 0) {
+            setActiveTeamId(activeProject.teams[0].id);
+        }
+    }
+  }, [activeProject, activeTeamId]);
+
+  useEffect(() => {
+    if (activeTeam && (!activeAgentId || !activeTeam.agents.find(a => a.id === activeAgentId))) {
+        if (activeTeam.agents.length > 0) {
+            setActiveAgentId(activeTeam.agents[0].id);
+        }
+    }
+  }, [activeTeam, activeAgentId]);
+
+  const updateOrganization = (newOrg: Organization) => {
+    setOrganization(newOrg);
+  };
+
+  const handleCreateProject = (project: Project) => {
+    setOrganization(prev => ({
+      ...prev,
+      projects: [...prev.projects, project]
+    }));
+    setActiveProjectId(project.id);
+    setActiveTab('settings');
+    if (project.teams.length > 0) {
+        setActiveTeamId(project.teams[0].id);
+        if (project.teams[0].agents.length > 0) {
+            setActiveAgentId(project.teams[0].agents[0].id);
+        }
+    }
+  };
+
+  const handleAddTeam = () => {
+    if (!activeProject) return;
+    const newTeam: TeamConfig = {
+      id: `team-${Date.now()}`,
+      name: `New Team ${activeProject.teams.length + 1}`,
+      description: "A new crew.",
+      process: 'sequential',
+      agents: [],
+      tasks: []
+    };
+    
+    setOrganization(prev => ({
+      ...prev,
+      projects: prev.projects.map(p => {
+         if (p.id === activeProjectId) {
+             return { ...p, teams: [...p.teams, newTeam], updatedAt: new Date().toISOString() };
+         }
+         return p;
+      })
+    }));
+    setActiveTeamId(newTeam.id);
+  };
+
+  // --- UPDATERS (scoped to active project -> active team) ---
+
+  const updateActiveProject = (updates: Partial<Project>) => {
+    if (!activeProjectId) return;
+    setOrganization(prev => ({
+      ...prev,
+      projects: prev.projects.map(p => {
+        if (p.id === activeProjectId) {
+          return {
+            ...p,
+            ...updates,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        return p;
+      })
+    }));
+  };
+
+  const updateActiveTeamConfig = (updates: Partial<TeamConfig>) => {
+    if (!activeProjectId || !activeTeamId) return;
+    
+    setOrganization(prev => ({
+      ...prev,
+      projects: prev.projects.map(p => {
+        if (p.id === activeProjectId) {
+          return {
+            ...p,
+            updatedAt: new Date().toISOString(),
+            teams: p.teams.map(t => {
+                if (t.id === activeTeamId) {
+                    return { ...t, ...updates };
+                }
+                return t;
+            })
+          };
+        }
+        return p;
+      })
+    }));
+  };
+
+  const updateActiveAgent = (updates: Partial<AgentConfig>) => {
+    if (!activeProjectId || !activeTeamId || !activeAgentId) return;
+
+    setOrganization(prev => ({
+      ...prev,
+      projects: prev.projects.map(p => {
+        if (p.id === activeProjectId) {
+          return {
+            ...p,
+            updatedAt: new Date().toISOString(),
+            teams: p.teams.map(t => {
+                if (t.id === activeTeamId) {
+                    return {
+                        ...t,
+                        agents: t.agents.map(a => a.id === activeAgentId ? { ...a, ...updates } : a)
+                    };
+                }
+                return t;
+            })
+          };
+        }
+        return p;
+      })
+    }));
+  };
+
+  // --- EXPORT ---
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleExportJSON = () => {
+      if (!activeTeam) return;
+      const blob = new Blob([JSON.stringify(activeTeam, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `team-${activeTeam.id}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setIsExportMenuOpen(false);
+  };
+
+  const handleExportNodeRuntime = async () => {
+    if (!activeTeam || !activeAgent) return;
+    // Basic example using active agent
+    const zip = await generateAgentRuntimeZip(activeAgent, activeTeam.tasks);
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${activeAgent.slug}-runtime.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setIsExportMenuOpen(false);
+  };
+
+  const handleExportPocketFlow = async () => {
+    if (!activeTeam || !activeAgent) return;
+    const zip = await generatePocketFlowPythonZip(activeAgent, activeTeam.tasks);
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${activeAgent.slug}-pocketflow.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setIsExportMenuOpen(false);
+  };
+
+  // --- RENDER ---
+
+  // 1. DASHBOARD VIEW
+  if (!activeProjectId || !activeProject) {
+    return (
+      <div className="min-h-screen bg-neutral-50 font-sans text-neutral-900">
+         <header className="h-16 bg-white border-b border-neutral-200 flex items-center px-6 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center text-white font-bold text-sm">N</div>
+              <h1 className="text-sm font-bold text-neutral-900" style={{ fontFamily: '"Nova Flat", system-ui' }}>Numtema Builder</h1>
+            </div>
+         </header>
+         <OrgDashboard 
+           organization={organization} 
+           onSelectProject={setActiveProjectId} 
+           onCreateProject={handleCreateProject} 
+         />
+      </div>
+    );
+  }
+
+  // 2. BUILDER VIEW
+  const renderContent = () => {
+    if (!activeTeam) return <div className="p-8 text-center">No team selected. Create a team to start.</div>;
+
+    switch(activeTab) {
+      case 'settings':
+        return (
+          <ProjectSettingsTab 
+            project={activeProject}
+            activeTeam={activeTeam} 
+            updateProject={updateActiveProject} 
+            updateTeamConfig={updateActiveTeamConfig} 
+          />
+        );
+      case 'team': 
+        return (
+          <TeamTab 
+            config={activeTeam} 
+            updateConfig={updateActiveTeamConfig} 
+            setActiveAgentId={(id) => { setActiveAgentId(id); setActiveTab('general'); }} 
+          />
+        );
+      case 'tasks': 
+        return <TasksTab config={activeTeam} updateConfig={updateActiveTeamConfig} />;
+      
+      // Agent Specific Tabs
+      case 'general': return activeAgent ? <GeneralTab config={activeAgent} updateConfig={updateActiveAgent} /> : <div>No agent selected</div>;
+      case 'prompts': return activeAgent ? <PromptsTab config={activeAgent} updateConfig={updateActiveAgent} /> : <div>No agent selected</div>;
+      case 'llm': return activeAgent ? <LLMTab config={activeAgent} updateConfig={updateActiveAgent} /> : <div>No agent selected</div>;
+      case 'tools': return activeAgent ? <ToolsTab config={activeAgent} updateConfig={updateActiveAgent} /> : <div>No agent selected</div>;
+      case 'knowledge': return activeAgent ? <KnowledgeTab config={activeAgent} updateConfig={updateActiveAgent} /> : <div>No agent selected</div>;
+      case 'flow': return <FlowTab />;
+      default: return <div>Select a tab</div>;
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-neutral-50 flex flex-col font-sans text-neutral-900">
+      {/* Header */}
+      <header className="h-16 bg-white border-b border-neutral-200 sticky top-0 z-50 flex items-center justify-between px-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center text-white font-bold text-sm">
+            N
+          </div>
+          <div className="flex flex-col">
+            <h1 className="text-sm font-bold text-neutral-900" style={{ fontFamily: '"Nova Flat", system-ui' }}>Numtema Builder</h1>
+            <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 uppercase tracking-wide">
+               <span>{activeProject.name}</span>
+               <span className="text-neutral-300">/</span>
+               <span>{activeTeam?.name || 'No Team'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+           {/* Agent Selector - Only show if in agent-specific tabs */}
+           {['general', 'prompts', 'llm', 'tools', 'knowledge'].includes(activeTab) && activeTeam && (
+             <div className="hidden md:flex items-center gap-2 bg-neutral-100 rounded-lg p-1 animate-in fade-in duration-300">
+                <span className="text-xs font-semibold text-neutral-500 pl-2 uppercase">Editing:</span>
+                <select 
+                  value={activeAgentId}
+                  onChange={(e) => { setActiveAgentId(e.target.value); }}
+                  className="bg-white border-0 rounded-md text-sm font-medium text-neutral-900 py-1 pl-2 pr-8 focus:ring-0 shadow-sm cursor-pointer"
+                >
+                  {activeTeam.agents.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                  {activeTeam.agents.length === 0 && <option disabled>No agents</option>}
+                </select>
+             </div>
+           )}
+
+           <div className="h-6 w-px bg-neutral-200 hidden md:block"></div>
+
+           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => alert('Project saved')}>Save</Button>
+             <div className="relative" ref={exportMenuRef}>
+               <Button 
+                variant="primary" 
+                size="sm" 
+                onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
+                icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+              >
+                Export
+               </Button>
+               {isExportMenuOpen && (
+                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-50 animate-in fade-in zoom-in-95 duration-100">
+                    <button 
+                      className="w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2"
+                      onClick={handleExportJSON}
+                    >
+                      <svg className="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+                      <span>Export Active Team (JSON)</span>
+                    </button>
+                    <button 
+                      className="w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2"
+                      onClick={handleExportNodeRuntime}
+                    >
+                      <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                      <span>Export Node.js Runtime (Zip)</span>
+                    </button>
+                    <button 
+                      className="w-full text-left px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50 flex items-center gap-2"
+                      onClick={handleExportPocketFlow}
+                    >
+                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      <span>Export PocketFlow (Python)</span>
+                    </button>
+                 </div>
+               )}
+             </div>
+           </div>
+        </div>
+      </header>
+
+      {/* Main Layout */}
+      <div className="flex flex-1 max-w-[1600px] mx-auto w-full">
+        <Sidebar 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+          onBackToDashboard={() => setActiveProjectId(null)}
+          projectName={activeProject.name}
+          teams={activeProject.teams}
+          activeTeamId={activeTeamId || ""}
+          onSwitchTeam={setActiveTeamId}
+          onAddTeam={handleAddTeam}
+        />
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto">
+           <div className="max-w-6xl mx-auto">
+              <div className="mb-8">
+                 <div className="flex items-center justify-between">
+                   <div>
+                      <h2 className="text-2xl font-bold text-neutral-900 capitalize">
+                        {activeTab === 'settings' ? 'Project Settings' : 
+                         activeTab === 'team' ? 'Team & Process' : 
+                         activeTab === 'tasks' ? 'Tasks & Workflow' : 
+                         activeTab === 'flow' ? 'Visual Flow' :
+                         `${activeAgent?.name || 'Agent'}: ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}`}
+                      </h2>
+                      <p className="text-neutral-500 mt-1 text-sm">
+                        {activeTab === 'settings' ? 'Manage project metadata and global configuration.' :
+                         activeTab === 'team' ? 'Manage your multi-agent crew and execution process.' : 
+                         activeTab === 'tasks' ? 'Orchestrate workflows and assign duties.' : 
+                         `Configuring settings for ${activeAgent?.name || 'the agent'}.`}
+                      </p>
+                   </div>
+                 </div>
+              </div>
+              {renderContent()}
+           </div>
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
+
+
+================================================
+FILE: index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Numtema AI Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nova+Flat&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Poppins', sans-serif;
+        background-color: #f8f9fa;
+      }
+      /* Custom scrollbar for webkit */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "jszip": "https://esm.sh/jszip@3.10.1"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+
+================================================
+FILE: index.tsx
+================================================
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
+}
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+
+================================================
+FILE: metadata.json
+================================================
+{
+  "name": "Numtema AI Builder",
+  "description": "A premium React application for configuring and building AI agents powered by Google Gemini models, featuring a sleek UI and RAG configuration.",
+  "requestFramePermissions": []
+}
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "numtema-ai-builder",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react-dom": "^19.2.0",
+    "react": "^19.2.0",
+    "@google/genai": "^1.30.0",
+    "jszip": "3.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+
+
+
+================================================
+FILE: tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
+
+
+================================================
+FILE: types.ts
+================================================
+
+export type TabId = 'settings' | 'team' | 'general' | 'prompts' | 'llm' | 'tools' | 'tasks' | 'knowledge' | 'flow' | 'export';
+
+export enum LLMProvider {
+  GOOGLE = 'google',
+  OPENAI = 'openai',
+  ANTHROPIC = 'anthropic',
+  QWEN = 'qwen',
+  CUSTOM = 'custom'
+}
+
+export enum GeminiModel {
+  GEMINI_2_5_FLASH = 'gemini-2.5-flash',
+  GEMINI_FLASH_LATEST = 'gemini-flash-latest',
+  GEMINI_FLASH_LITE = 'gemini-flash-lite-latest',
+  GEMINI_3_PRO = 'gemini-3-pro-preview',
+  GEMINI_2_5_FLASH_IMAGE = 'gemini-2.5-flash-image',
+  GEMINI_3_PRO_IMAGE = 'gemini-3-pro-image-preview',
+  GEMINI_NATIVE_AUDIO = 'gemini-2.5-flash-native-audio-preview-09-2025',
+  GEMINI_TTS = 'gemini-2.5-flash-preview-tts',
+  VEO_FAST = 'veo-3.1-fast-generate-preview',
+  VEO_HQ = 'veo-3.1-generate-preview'
+}
+
+export interface GlobalPrompt {
+  id: string;
+  label: string;
+  key: string;
+  content: string;
+  tags?: string[];
+  orderIndex?: number;
+}
+
+export interface ToolParam {
+  name: string;
+  type: string;
+  required: boolean;
+  description?: string;
+  enumValues?: string[];
+  orderIndex?: number;
+}
+
+export interface Tool {
+  id: string;
+  name: string;
+  slug: string;
+  type: 'http' | 'webhook' | 'internal' | 'mcp' | 'custom' | 'google_search' | 'google_maps';
+  description: string;
+  enabled: boolean;
+  
+  // HTTP Specifics
+  httpMethod?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+  httpUrl?: string;
+  httpHeaders?: Record<string, string>;
+
+  // Schemas
+  inputSchema?: string;
+  outputSchema?: string;
+  
+  // UI Params
+  params?: ToolParam[];
+}
+
+// --- TASK CONFIGURATION TYPES ---
+
+export type TaskOutputFormat = "raw" | "json" | "pydantic";
+export type TaskGuardrailMode = "function" | "llm";
+
+export interface TaskGuardrail {
+  id: string;
+  mode: TaskGuardrailMode;
+  description: string;
+  active?: boolean;
+  config?: Record<string, unknown>;
+}
+
+export interface TaskConfig {
+  // Identity
+  id: string;
+  name: string;
+  slug?: string;
+  description: string;
+  expectedOutput: string;
+  tags?: string[];
+
+  // Assignment
+  agentId?: string; // ID of the agent in the team (Required for CrewAI)
+  allowedTools?: string[];
+
+  // Dependencies
+  contextTasks?: string[];
+
+  // Execution
+  asyncExecution?: boolean;
+  humanReview?: boolean;
+  markdown?: boolean;
+  maxExecutionTime?: number | null;
+  maxRetries?: number | null;
+
+  // Configuration
+  config?: Record<string, unknown>;
+
+  // Output
+  outputFile?: string | null;
+  createDirectory?: boolean;
+  outputFormat?: TaskOutputFormat;
+  outputJsonSchema?: string; // Stored as string for editing, parsed for runtime
+  outputModelName?: string | null;
+
+  // Guardrails
+  guardrailMaxRetries?: number | null;
+  guardrails?: TaskGuardrail[];
+}
+
+// --- KNOWLEDGE & FLOW TYPES ---
+
+export type KnowledgeSourceType = 'text' | 'url' | 'pdf' | 'csv' | 'excel' | 'json' | 'api';
+
+export interface KnowledgeSource {
+  id: string;
+  title: string;
+  type: KnowledgeSourceType;
+  tags: string[];
+  status: 'indexed' | 'processing' | 'pending';
+  content?: string;
+  sharedWithCrew: boolean; // True = Crew Level, False = Agent Level
+  
+  // Schema specific
+  filePath?: string; // Virtual path for file based sources
+  originalPath?: string;
+  mimeType?: string;
+  collectionName?: string;
+}
+
+export interface EmbedderConfig {
+  provider: 'google' | 'openai' | 'azure' | 'ollama' | 'voyage' | 'custom';
+  model: string;
+  apiKeyEnvVar?: string;
+  apiBase?: string; // For Azure/Ollama
+}
+
+export interface KnowledgeLink {
+  sourceId: string;
+  maxChunks?: number;
+  relevanceWeight?: number;
+}
+
+export interface FlowNode {
+  id: string;
+  label: string;
+  type: 'start' | 'prompt' | 'tool_call' | 'decision' | 'end' | 'action';
+  description?: string;
+  x: number;
+  y: number;
+  
+  // Schema specifics
+  name?: string;
+  promptId?: string;
+  toolId?: string;
+  config?: Record<string, any>;
+}
+
+export interface FlowEdge {
+  id: string;
+  source: string;
+  target: string;
+  label?: string;
+  condition?: string;
+  orderIndex?: number;
+}
+
+export interface FlowData {
+  id?: string;
+  name?: string;
+  description?: string;
+  isDefault?: boolean;
+  nodes: FlowNode[];
+  edges: FlowEdge[];
+  summary: string;
+}
+
+export interface FallbackLLM {
+  provider: string;
+  model: string;
+  apiKeyEnvVar: string;
+  temperature?: number;
+  maxTokens?: number;
+  orderIndex?: number;
+}
+
+export interface RuntimeTemplate {
+  id: string;
+  label: string;
+  description?: string;
+  type: string;
+}
+
+// --- AGENT & TEAM TYPES ---
+
+export interface AgentConfig {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  
+  // CrewAI Specifics
+  role: string; 
+  goal: string; 
+  
+  language: string;
+  status: 'draft' | 'active' | 'archived';
+  currentVersion: number;
+  
+  personaTone: string; 
+  emojiAllowed: boolean;
+
+  // Prompts
+  greeting: string;
+  baseInstructions: string;
+  globalPrompts: GlobalPrompt[];
+
+  llm: {
+    provider: LLMProvider;
+    model: string;
+    apiKeyEnvVar: string;
+    temperature: number;
+    maxTokens: number;
+    topK?: number;
+    topP?: number;
+    fallbacks?: FallbackLLM[];
+  };
+
+  tools: Tool[];
+  
+  knowledge: {
+    sources: KnowledgeSource[];
+    embedder: EmbedderConfig;
+    vectorProvider?: string;
+    chunkSize: number;
+    overlap: number;
+    topKRetrieval: number;
+  };
+}
+
+export type ProcessType = 'sequential' | 'hierarchical';
+
+export interface TeamConfig {
+  id: string;
+  name: string;
+  description?: string;
+  process: ProcessType;
+  
+  // Hierarchical specific settings
+  managerAgentId?: string; // ID of the custom agent acting as manager
+  managerLLM?: { // Fallback if no custom agent is selected
+    provider: LLMProvider;
+    model: string;
+  };
+  
+  agents: AgentConfig[];
+  tasks: TaskConfig[];
+  
+  runtime?: {
+    defaultTemplate?: string;
+    templates?: RuntimeTemplate[];
+    options?: Record<string, any>;
+  };
+}
+
+// --- ORG & PROJECT TYPES ---
+
+export interface Project {
+  id: string;
+  name: string;
+  description?: string;
+  icon?: string; // SVG string or Emoji
+  teams: TeamConfig[]; // Multiple teams allowed
+  createdAt: string; // ISO date string
+  updatedAt: string;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  projects: Project[];
+}
+
+
+================================================
+FILE: vite.config.ts
+================================================
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, '.', '');
+    return {
+      server: {
+        port: 3000,
+        host: '0.0.0.0',
+      },
+      plugins: [react()],
+      define: {
+        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      },
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+        }
+      }
+    };
+});
+
+
+
+================================================
+FILE: components/OrgDashboard.tsx
+================================================
+
+import React, { useState } from 'react';
+import { Organization, Project, TeamConfig, LLMProvider, GeminiModel } from '../types';
+import { Button } from './ui/Button';
+import { Card } from './ui/Card';
+import { Input } from './ui/Input';
+import { Textarea } from './ui/Textarea';
+import { generateProjectIcon } from '../services/geminiService';
+
+interface OrgDashboardProps {
+  organization: Organization;
+  onSelectProject: (projectId: string) => void;
+  onCreateProject: (project: Project) => void;
+}
+
+const OrgDashboard: React.FC<OrgDashboardProps> = ({ organization, onSelectProject, onCreateProject }) => {
+  const [isCreating, setIsCreating] = useState(false);
+  const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectDesc, setNewProjectDesc] = useState("");
+  const [newProjectIcon, setNewProjectIcon] = useState("");
+
+  const handleGenerateIcon = async () => {
+    if (!newProjectName) return;
+    setIsGeneratingIcon(true);
+    const icon = await generateProjectIcon(newProjectName, newProjectDesc);
+    setNewProjectIcon(icon);
+    setIsGeneratingIcon(false);
+  };
+
+  const handleCreate = () => {
+    if (!newProjectName.trim()) return;
+
+    // Default Team Template
+    const defaultTeam: TeamConfig = {
+      id: `team-${Date.now()}`,
+      name: `${newProjectName} Core Crew`,
+      description: "Initial crew configuration.",
+      process: 'sequential',
+      agents: [
+        {
+            id: `agent-${Date.now()}`,
+            name: 'Agent 1',
+            slug: 'agent_1',
+            role: 'Assistant',
+            goal: 'Help users',
+            description: 'Default assistant',
+            language: 'en',
+            status: 'draft',
+            currentVersion: 1,
+            personaTone: 'Helpful',
+            emojiAllowed: true,
+            greeting: 'Hello!',
+            baseInstructions: 'You are helpful.',
+            globalPrompts: [],
+            llm: {
+              provider: LLMProvider.GOOGLE,
+              model: GeminiModel.GEMINI_2_5_FLASH,
+              apiKeyEnvVar: 'GEMINI_API_KEY',
+              temperature: 0.7,
+              maxTokens: 2048
+            },
+            tools: [],
+            knowledge: {
+              sources: [],
+              embedder: { provider: 'google', model: 'models/text-embedding-004' },
+              chunkSize: 1000,
+              overlap: 200,
+              topKRetrieval: 3
+            }
+        }
+      ],
+      tasks: []
+    };
+
+    const newProject: Project = {
+      id: `proj-${Date.now()}`,
+      name: newProjectName,
+      description: newProjectDesc,
+      icon: newProjectIcon || "📁",
+      teams: [defaultTeam], // Initialize with one default team
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    onCreateProject(newProject);
+    setIsCreating(false);
+    setNewProjectName("");
+    setNewProjectDesc("");
+    setNewProjectIcon("");
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto px-6 py-8 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-3xl font-bold text-neutral-900" style={{ fontFamily: '"Nova Flat", system-ui' }}>{organization.name}</h1>
+          <p className="text-neutral-500 mt-1">Manage your AI projects and teams.</p>
+        </div>
+        <Button onClick={() => setIsCreating(true)} icon={<span>+</span>}>
+          New Project
+        </Button>
+      </div>
+
+      {isCreating && (
+        <div className="mb-8 bg-white p-6 rounded-xl border border-neutral-200 shadow-sm animate-in slide-in-from-top-4 duration-300">
+           <h3 className="text-lg font-bold mb-4">Create New Project</h3>
+           <div className="grid grid-cols-1 gap-4 max-w-xl">
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <Input 
+                    label="Project Name" 
+                    value={newProjectName} 
+                    onChange={(e) => setNewProjectName(e.target.value)} 
+                    placeholder="e.g. Customer Support Bot"
+                    autoFocus
+                  />
+                </div>
+                <div className="w-20 pt-6">
+                   <div 
+                     className="w-full h-[38px] rounded-lg border border-neutral-200 flex items-center justify-center bg-neutral-50 cursor-pointer hover:bg-neutral-100 overflow-hidden text-xl"
+                     onClick={handleGenerateIcon}
+                     title="Click to generate icon"
+                   >
+                     {isGeneratingIcon ? (
+                       <div className="animate-spin h-4 w-4 border-2 border-neutral-400 border-t-transparent rounded-full"></div>
+                     ) : (
+                       newProjectIcon && newProjectIcon.includes('<svg') 
+                         ? <div className="w-6 h-6" dangerouslySetInnerHTML={{__html: newProjectIcon}} /> 
+                         : (newProjectIcon || <span className="opacity-30">🪄</span>)
+                     )}
+                   </div>
+                </div>
+              </div>
+              <Textarea 
+                label="Description" 
+                value={newProjectDesc} 
+                onChange={(e) => setNewProjectDesc(e.target.value)} 
+                placeholder="What is this project for?"
+              />
+              <div className="flex gap-3 mt-2">
+                 <Button onClick={handleCreate} disabled={!newProjectName}>Create Project</Button>
+                 <Button variant="ghost" onClick={() => setIsCreating(false)}>Cancel</Button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {organization.projects.map((project) => (
+          <div 
+            key={project.id}
+            onClick={() => onSelectProject(project.id)}
+            className="group bg-white border border-neutral-200 rounded-2xl p-6 hover:border-neutral-300 hover:shadow-lg transition-all cursor-pointer flex flex-col h-full"
+          >
+             <div className="flex justify-between items-start mb-4">
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-neutral-50 to-white border border-neutral-100 shadow-inner flex items-center justify-center text-3xl group-hover:scale-105 transition-transform duration-300 text-neutral-700">
+                   {project.icon && project.icon.includes('<svg') ? (
+                     <div className="w-8 h-8" dangerouslySetInnerHTML={{__html: project.icon}} />
+                   ) : (
+                     project.icon || "📁"
+                   )}
+                </div>
+                <span className="text-[10px] font-mono text-neutral-400 bg-neutral-50 px-2 py-1 rounded-md">
+                   {new Date(project.updatedAt).toLocaleDateString()}
+                </span>
+             </div>
+             <h3 className="text-xl font-bold text-neutral-900 mb-2 group-hover:text-indigo-600 transition-colors">{project.name}</h3>
+             <p className="text-sm text-neutral-500 line-clamp-2 mb-6 flex-1">
+               {project.description || "No description."}
+             </p>
+             
+             <div className="pt-4 border-t border-neutral-100 flex items-center justify-between">
+                 <div className="flex items-center gap-4 text-xs text-neutral-500 font-medium">
+                    <div className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2 py-1 rounded-md">
+                       {project.teams.length} Teams
+                    </div>
+                 </div>
+                 <div className="flex -space-x-2">
+                    {project.teams.flatMap(t => t.agents).slice(0,3).map(a => (
+                       <div key={a.id} className="w-6 h-6 rounded-full bg-indigo-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-indigo-700" title={a.name}>
+                          {a.name.charAt(0)}
+                       </div>
+                    ))}
+                    {project.teams.flatMap(t => t.agents).length > 3 && (
+                      <div className="w-6 h-6 rounded-full bg-neutral-100 border-2 border-white flex items-center justify-center text-[8px] font-bold text-neutral-500">
+                         +
+                      </div>
+                    )}
+                 </div>
+             </div>
+          </div>
+        ))}
+        
+        {organization.projects.length === 0 && !isCreating && (
+           <div className="col-span-full text-center py-24 border-2 border-dashed border-neutral-200 rounded-2xl bg-neutral-50/50">
+              <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-sm">
+                 <span className="text-3xl">✨</span>
+              </div>
+              <h3 className="text-xl font-bold text-neutral-900">No projects yet</h3>
+              <p className="text-neutral-500 mb-6 max-w-sm mx-auto">Create your first AI project to start building agents, crews, and workflows.</p>
+              <Button onClick={() => setIsCreating(true)} size="lg">Create First Project</Button>
+           </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default OrgDashboard;
+
+
+
+================================================
+FILE: components/Sidebar.tsx
+================================================
+
+import React from 'react';
+import { TabId, TeamConfig } from '../types';
+import { Button } from './ui/Button';
+
+interface SidebarProps {
+  activeTab: TabId;
+  setActiveTab: (tab: TabId) => void;
+  onBackToDashboard: () => void;
+  projectName?: string;
+  teams: TeamConfig[];
+  activeTeamId: string;
+  onSwitchTeam: (teamId: string) => void;
+  onAddTeam: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ 
+  activeTab, 
+  setActiveTab, 
+  onBackToDashboard, 
+  projectName,
+  teams,
+  activeTeamId,
+  onSwitchTeam,
+  onAddTeam
+}) => {
+  const tabs: { id: TabId; label: string }[] = [
+    { id: 'settings', label: 'Project Settings' },
+    { id: 'team', label: 'Team & Process' },
+    { id: 'tasks', label: 'Tasks & Workflow' },
+    { id: 'general', label: 'General Identity' },
+    { id: 'prompts', label: 'Prompts & Behavior' },
+    { id: 'llm', label: 'LLM Config' },
+    { id: 'tools', label: 'Tools' },
+    { id: 'knowledge', label: 'Knowledge Base' },
+    { id: 'flow', label: 'Visual Flow' },
+  ];
+
+  return (
+    <aside className="w-64 bg-white border-r border-neutral-200 h-[calc(100vh-64px)] sticky top-16 overflow-y-auto hidden md:block flex-shrink-0 flex flex-col">
+      <div className="p-4 flex-1">
+        <div className="mb-6">
+           <Button 
+             variant="ghost" 
+             size="sm" 
+             onClick={onBackToDashboard} 
+             className="w-full justify-start text-neutral-500 hover:text-neutral-900 -ml-2 mb-4"
+             icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>}
+           >
+             Back to Dashboard
+           </Button>
+           {projectName && (
+             <div className="px-1">
+                <div className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider mb-1">Active Project</div>
+                <div className="font-bold text-neutral-900 truncate text-lg" title={projectName}>{projectName}</div>
+             </div>
+           )}
+        </div>
+
+        {/* Team Switcher Section */}
+        <div className="mb-6 bg-neutral-50 rounded-lg p-2 border border-neutral-100">
+            <div className="flex items-center justify-between mb-2 px-1">
+              <span className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider">Current Team</span>
+              <button onClick={onAddTeam} className="text-neutral-400 hover:text-neutral-900" title="Add Team">
+                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              </button>
+            </div>
+            <select 
+              value={activeTeamId} 
+              onChange={(e) => onSwitchTeam(e.target.value)}
+              className="w-full text-xs font-medium border-0 bg-white rounded shadow-sm py-1.5 pl-2 pr-8 focus:ring-0"
+            >
+               {teams.map(team => (
+                 <option key={team.id} value={team.id}>{team.name}</option>
+               ))}
+            </select>
+        </div>
+
+        <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2 px-2">Builder Menu</h2>
+        <nav className="space-y-0.5">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                activeTab === tab.id
+                  ? 'bg-neutral-900 text-white shadow-sm'
+                  : 'text-neutral-600 hover:bg-neutral-50 hover:text-neutral-900'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+      
+      <div className="p-4 border-t border-neutral-100 bg-neutral-50/50">
+          <div className="px-1 text-xs text-neutral-400 font-medium flex justify-between">
+             <span>Numtema Builder</span>
+             <span>v2.2</span>
+          </div>
+      </div>
+    </aside>
+  );
+};
+
+export default Sidebar;
+
+
+================================================
+FILE: components/tabs/FlowTab.tsx
+================================================
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Button } from '../ui/Button';
+import { generateStructuredFlow, iterateFlowStructure } from '../../services/geminiService';
+import { FlowData, FlowNode, FlowEdge } from '../../types';
+import { Input } from '../ui/Input';
+
+interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+}
+
+const FlowTab: React.FC = () => {
+  const [flowData, setFlowData] = useState<FlowData | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [refineInput, setRefineInput] = useState("");
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  // Initial Generation
+  const handleGenerateFlow = async () => {
+    setIsGenerating(true);
+    try {
+      const data = await generateStructuredFlow({
+        name: "Current Agent",
+        description: "Based on current configuration" 
+      });
+      setFlowData(data);
+      setMessages([{ role: 'model', text: data.summary }]);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate flow.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Iteration
+  const handleRefineFlow = async () => {
+    if (!flowData || !refineInput.trim()) return;
+    
+    const userRequest = refineInput;
+    setRefineInput("");
+    setMessages(prev => [...prev, { role: 'user', text: userRequest }]);
+    setIsGenerating(true);
+
+    try {
+      const data = await iterateFlowStructure(flowData, userRequest);
+      setFlowData(data);
+      setMessages(prev => [...prev, { role: 'model', text: data.summary }]);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to refine flow.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Helper to draw lines
+  const renderEdges = () => {
+    if (!flowData) return null;
+
+    return (
+      <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+        <defs>
+          <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L0,6 L9,3 z" fill="#9ca3af" />
+          </marker>
+        </defs>
+        {flowData.edges.map((edge) => {
+          const source = flowData.nodes.find(n => n.id === edge.source);
+          const target = flowData.nodes.find(n => n.id === edge.target);
+          
+          if (!source || !target) return null;
+
+          // Simple center-to-center calculation (could be improved)
+          const x1 = source.x + 96; // 96 is half of w-48 (192px)
+          const y1 = source.y + 40; // approx half height
+          const x2 = target.x + 96;
+          const y2 = target.y;
+
+          // Bezier curve for smooth flow
+          const path = `M${x1},${y1} C${x1},${y1 + 50} ${x2},${y2 - 50} ${x2},${y2}`;
+
+          return (
+            <g key={edge.id}>
+              <path d={path} fill="none" stroke="#9ca3af" strokeWidth="2" markerEnd="url(#arrow)" />
+              {edge.label && (
+                <text x={(x1 + x2) / 2} y={(y1 + y2) / 2} fill="#4b5563" fontSize="10" textAnchor="middle" className="bg-white px-1">
+                  {edge.label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  return (
+    <div className="flex h-[600px] gap-4 animate-in fade-in duration-500">
+      
+      {/* Left Panel: Chat Interface */}
+      <div className="w-80 flex flex-col gap-4">
+         <div className="bg-white p-4 rounded-xl border border-neutral-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-sm text-neutral-900">Flow Assistant</h3>
+              {flowData && <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Active</span>}
+            </div>
+            
+            {!flowData ? (
+              <div className="flex-1 flex flex-col items-center justify-center text-center space-y-4">
+                 <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+                 </div>
+                 <div className="space-y-1">
+                   <p className="text-sm font-medium">Start Designing</p>
+                   <p className="text-xs text-neutral-500">Generate a visual flow strategy based on your current config.</p>
+                 </div>
+                 <Button 
+                    variant="primary" 
+                    onClick={handleGenerateFlow} 
+                    isLoading={isGenerating}
+                    className="w-full"
+                  >
+                    Generate Flow
+                  </Button>
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 overflow-y-auto space-y-3 mb-4 pr-2 custom-scrollbar">
+                  {messages.map((msg, idx) => (
+                    <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                       <div className={`max-w-[90%] rounded-lg p-2 text-xs ${
+                         msg.role === 'user' 
+                           ? 'bg-neutral-900 text-white' 
+                           : 'bg-neutral-100 text-neutral-700'
+                       }`}>
+                          {msg.text}
+                       </div>
+                       <span className="text-[9px] text-neutral-400 mt-0.5 capitalize">{msg.role === 'model' ? 'AI' : 'You'}</span>
+                    </div>
+                  ))}
+                   {isGenerating && (
+                      <div className="flex items-center gap-2 text-xs text-neutral-400 pl-1">
+                        <div className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce"></div>
+                        <div className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce delay-75"></div>
+                        <div className="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce delay-150"></div>
+                      </div>
+                   )}
+                   <div ref={chatEndRef} />
+                </div>
+
+                <div className="pt-3 border-t border-neutral-100">
+                   <div className="flex gap-2">
+                      <Input 
+                        value={refineInput} 
+                        onChange={(e) => setRefineInput(e.target.value)} 
+                        placeholder="Update flow (e.g. add loop)..."
+                        className="text-xs"
+                        disabled={isGenerating}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleRefineFlow(); }}
+                      />
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        onClick={handleRefineFlow}
+                        isLoading={isGenerating}
+                        disabled={!refineInput || isGenerating}
+                        icon={<svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>}
+                      />
+                   </div>
+                </div>
+              </>
+            )}
+         </div>
+      </div>
+
+      {/* Right Panel: Canvas */}
+      <div className="flex-1 bg-neutral-50 border border-neutral-200 rounded-xl relative overflow-hidden shadow-inner group">
+          {/* Grid Background */}
+          <div className="absolute inset-0 opacity-30" 
+              style={{ 
+                  backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', 
+                  backgroundSize: '20px 20px' 
+              }} 
+          />
+
+          {/* Canvas Content */}
+          <div className="absolute inset-0 overflow-auto custom-scrollbar">
+             <div className="relative min-w-[800px] min-h-[800px] p-10 transform scale-75 origin-top-left sm:scale-100">
+                {renderEdges()}
+                {flowData?.nodes.map((node) => (
+                  <div 
+                    key={node.id}
+                    className={`absolute w-48 p-3 rounded-lg shadow-md border-2 transition-all hover:scale-105 cursor-pointer bg-white
+                      ${node.type === 'start' ? 'border-green-200 shadow-green-50' : ''}
+                      ${node.type === 'end' ? 'border-red-200 shadow-red-50' : ''}
+                      ${node.type === 'action' ? 'border-indigo-200 shadow-indigo-50' : ''}
+                      ${node.type === 'decision' ? 'border-amber-200 shadow-amber-50 rounded-xl' : ''}
+                    `}
+                    style={{ 
+                      left: node.x, 
+                      top: node.y 
+                    }}
+                  >
+                     <div className={`text-[10px] font-bold uppercase mb-1
+                        ${node.type === 'start' ? 'text-green-600' : ''}
+                        ${node.type === 'end' ? 'text-red-600' : ''}
+                        ${node.type === 'action' ? 'text-indigo-600' : ''}
+                        ${node.type === 'decision' ? 'text-amber-600' : ''}
+                     `}>
+                        {node.type}
+                     </div>
+                     <div className="text-xs font-bold text-neutral-900 leading-tight">{node.label}</div>
+                     {node.description && <div className="text-[10px] text-neutral-500 mt-1 leading-tight">{node.description}</div>}
+                  </div>
+                ))}
+             </div>
+          </div>
+
+          {/* Empty State Overlay */}
+          {!flowData && !isGenerating && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+               <div className="bg-white/80 backdrop-blur px-6 py-4 rounded-xl border border-neutral-200 shadow-sm text-center">
+                  <p className="text-sm font-medium text-neutral-500">Canvas Empty</p>
+                  <p className="text-xs text-neutral-400">Use the chat to generate a flow.</p>
+               </div>
+            </div>
+          )}
+      </div>
+    </div>
+  );
+};
+
+export default FlowTab;
+
+
+================================================
+FILE: components/tabs/GeneralTab.tsx
+================================================
+
+import React, { useState } from 'react';
+import { AgentConfig } from '../../types';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { generateAgentContent } from '../../services/geminiService';
+
+interface GeneralTabProps {
+  config: AgentConfig;
+  updateConfig: (updates: Partial<AgentConfig>) => void;
+}
+
+const GeneralTab: React.FC<GeneralTabProps> = ({ config, updateConfig }) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingIdentity, setIsGeneratingIdentity] = useState(false);
+
+  const handleGenerateGreeting = async () => {
+    setIsGenerating(true);
+    const greeting = await generateAgentContent('greeting', {
+      name: config.name,
+      description: config.description,
+      tone: config.personaTone
+    });
+    updateConfig({ greeting });
+    setIsGenerating(false);
+  };
+
+  const handleGenerateIdentity = async () => {
+    setIsGeneratingIdentity(true);
+    // Mocking AI generation for identity parts based on description
+    // In a real app, you'd have a specific service function for this or parse a larger response
+    const generatedRole = await generateAgentContent('prompt', {
+       name: config.name,
+       description: config.description,
+       tone: "Professional",
+       extra: "Generate a 3-5 word job role title for this agent."
+    });
+    const generatedGoal = await generateAgentContent('prompt', {
+       name: config.name,
+       description: config.description,
+       tone: "Professional",
+       extra: "Generate a clear, one-sentence goal for this agent."
+    });
+    
+    updateConfig({ 
+        role: generatedRole.replace(/"/g, '').trim(), 
+        goal: generatedGoal.replace(/"/g, '').trim() 
+    });
+    setIsGeneratingIdentity(false);
+  };
+
+  return (
+    <div className="space-y-6 max-w-3xl animate-in fade-in duration-500">
+      <Card title="Identity" description="Define the core identity and settings of your agent.">
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+              label="Agent Name"
+              value={config.name}
+              onChange={(e) => updateConfig({ name: e.target.value })}
+              placeholder="e.g. Leo"
+            />
+             <Input
+              label="Slug"
+              value={config.slug}
+              onChange={(e) => updateConfig({ slug: e.target.value })}
+              placeholder="e.g. leo-assistant"
+              className="font-mono"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100">
+            <div className="md:col-span-2 flex justify-between items-center">
+               <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">CrewAI Identity</span>
+               <Button variant="ghost" size="sm" onClick={handleGenerateIdentity} isLoading={isGeneratingIdentity} className="text-indigo-600 bg-indigo-100 hover:bg-indigo-200">
+                  Auto-Generate
+               </Button>
+            </div>
+            <Input
+              label="Role"
+              value={config.role}
+              onChange={(e) => updateConfig({ role: e.target.value })}
+              placeholder="e.g. Senior Researcher"
+            />
+             <Input
+              label="Goal"
+              value={config.goal}
+              onChange={(e) => updateConfig({ goal: e.target.value })}
+              placeholder="e.g. Uncover the latest trends in AI."
+            />
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             <Input
+              label="Language"
+              value={config.language}
+              onChange={(e) => updateConfig({ language: e.target.value })}
+              placeholder="e.g. en, fr"
+            />
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Status</label>
+              <select 
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                value={config.status}
+                onChange={(e) => updateConfig({ status: e.target.value as any })}
+              >
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </div>
+            <div className="flex items-center h-full pt-6">
+               <label className="flex items-center space-x-2 cursor-pointer">
+                  <input 
+                    type="checkbox" 
+                    checked={config.emojiAllowed}
+                    onChange={(e) => updateConfig({ emojiAllowed: e.target.checked })}
+                    className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900" 
+                  />
+                  <span className="text-sm font-medium text-neutral-700">Allow Emojis</span>
+               </label>
+            </div>
+          </div>
+
+          <Input
+            label="Persona Tone"
+            value={config.personaTone}
+            onChange={(e) => updateConfig({ personaTone: e.target.value })}
+            placeholder="e.g. Professional, Friendly, Witty"
+          />
+          
+          <Textarea
+            label="Description"
+            value={config.description}
+            onChange={(e) => updateConfig({ description: e.target.value })}
+            placeholder="What does this agent do? Who is it for?"
+            rows={3}
+          />
+        </div>
+      </Card>
+
+      <Card 
+        title="Greeting Message" 
+        description="The first message the agent sends to start the conversation."
+        action={
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            onClick={handleGenerateGreeting} 
+            isLoading={isGenerating}
+            icon={
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            }
+          >
+            Generate with Gemini
+          </Button>
+        }
+      >
+        <Textarea
+          value={config.greeting}
+          onChange={(e) => updateConfig({ greeting: e.target.value })}
+          placeholder="Hello! How can I help you today?"
+          rows={4}
+        />
+      </Card>
+    </div>
+  );
+};
+
+export default GeneralTab;
+
+
+================================================
+FILE: components/tabs/KnowledgeTab.tsx
+================================================
+
+import React, { useState } from 'react';
+import { AgentConfig, KnowledgeSource, KnowledgeSourceType } from '../../types';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { generateKnowledgeContent, recommendEmbedderConfig } from '../../services/geminiService';
+
+interface KnowledgeTabProps {
+  config: AgentConfig;
+  updateConfig: (updates: Partial<AgentConfig>) => void;
+}
+
+const KnowledgeTab: React.FC<KnowledgeTabProps> = ({ config, updateConfig }) => {
+  const [aiTopic, setAiTopic] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [viewingSource, setViewingSource] = useState<KnowledgeSource | null>(null);
+  const [uploadType, setUploadType] = useState<KnowledgeSourceType>('text');
+
+  const addSource = () => {
+    // Simulate file selection for 'file' types
+    let fileName = "New Document";
+    if (uploadType === 'pdf') fileName = "document.pdf";
+    if (uploadType === 'csv') fileName = "data.csv";
+    if (uploadType === 'excel') fileName = "spreadsheet.xlsx";
+    if (uploadType === 'json') fileName = "data.json";
+
+    const newSource: KnowledgeSource = {
+      id: Date.now().toString(),
+      title: fileName,
+      type: uploadType,
+      tags: [uploadType],
+      status: 'pending',
+      sharedWithCrew: false
+    };
+    updateConfig({ knowledge: { ...config.knowledge, sources: [...config.knowledge.sources, newSource] } });
+  };
+
+  const handleGenerateContent = async () => {
+    if (!aiTopic.trim()) return;
+    setIsGenerating(true);
+    try {
+      const content = await generateKnowledgeContent(aiTopic, {
+        name: config.name,
+        description: config.description
+      });
+      
+      const newSource: KnowledgeSource = {
+        id: Date.now().toString(),
+        title: aiTopic,
+        type: "text",
+        tags: ["generated", "ai", "text"],
+        status: 'indexed',
+        content: content,
+        sharedWithCrew: false
+      };
+      
+      updateConfig({ knowledge: { ...config.knowledge, sources: [...config.knowledge.sources, newSource] } });
+      setAiTopic("");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate knowledge.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleAutoConfigure = async () => {
+    setIsOptimizing(true);
+    try {
+      const rec = await recommendEmbedderConfig({
+        name: config.name,
+        description: config.description
+      });
+      
+      updateConfig({
+        knowledge: {
+          ...config.knowledge,
+          chunkSize: rec.chunkSize || 1000,
+          overlap: rec.overlap || 200,
+          embedder: {
+            ...config.knowledge.embedder,
+            provider: rec.embeddingProvider as any || 'google',
+            model: rec.embeddingModel || 'models/text-embedding-004'
+          }
+        }
+      });
+    } catch (e) {
+      console.error(e);
+      alert("Failed to auto-configure knowledge settings.");
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  const removeSource = (id: string) => {
+    updateConfig({ 
+        knowledge: { 
+            ...config.knowledge, 
+            sources: config.knowledge.sources.filter(s => s.id !== id) 
+        } 
+    });
+  };
+
+  const toggleShared = (id: string) => {
+    updateConfig({
+        knowledge: {
+            ...config.knowledge,
+            sources: config.knowledge.sources.map(s => s.id === id ? { ...s, sharedWithCrew: !s.sharedWithCrew } : s)
+        }
+    });
+  };
+
+  return (
+    <div className="space-y-6 max-w-5xl animate-in fade-in duration-500">
+      
+       {/* AI Generator */}
+       <Card className="bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
+        <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="flex-1 w-full">
+            <Input 
+              label="AI Article Generator"
+              placeholder="e.g. Return policy for digital products"
+              value={aiTopic}
+              onChange={(e) => setAiTopic(e.target.value)}
+              className="bg-white"
+            />
+          </div>
+          <Button 
+            variant="secondary" 
+            onClick={handleGenerateContent} 
+            isLoading={isGenerating}
+            disabled={!aiTopic}
+            icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+          >
+            Generate Article
+          </Button>
+        </div>
+      </Card>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+         
+         {/* Left Column: Configuration */}
+         <div className="lg:col-span-1 space-y-6">
+            <div className="flex items-center justify-between">
+               <h3 className="text-lg font-semibold text-neutral-900">Configuration</h3>
+               <Button variant="ghost" size="sm" onClick={handleAutoConfigure} isLoading={isOptimizing} title="Auto-tune settings">
+                  <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+               </Button>
+            </div>
+
+            <Card title="Embedder Settings">
+               <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Provider</label>
+                    <select 
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      value={config.knowledge.embedder.provider}
+                      onChange={(e) => updateConfig({ knowledge: {...config.knowledge, embedder: {...config.knowledge.embedder, provider: e.target.value as any} }})}
+                    >
+                      <option value="google">Google (Gemini)</option>
+                      <option value="openai">OpenAI</option>
+                      <option value="azure">Azure OpenAI</option>
+                      <option value="ollama">Ollama (Local)</option>
+                      <option value="voyage">Voyage AI</option>
+                    </select>
+                  </div>
+                  <Input 
+                    label="Model Name"
+                    value={config.knowledge.embedder.model}
+                    onChange={(e) => updateConfig({ knowledge: {...config.knowledge, embedder: {...config.knowledge.embedder, model: e.target.value} }})}
+                    placeholder="e.g. text-embedding-3-small"
+                    className="font-mono text-xs"
+                  />
+                  {(config.knowledge.embedder.provider === 'azure' || config.knowledge.embedder.provider === 'ollama') && (
+                     <Input 
+                        label="API Base URL"
+                        value={config.knowledge.embedder.apiBase || ''}
+                        onChange={(e) => updateConfig({ knowledge: {...config.knowledge, embedder: {...config.knowledge.embedder, apiBase: e.target.value} }})}
+                        placeholder="http://localhost:11434"
+                     />
+                  )}
+               </div>
+            </Card>
+
+            <Card title="Chunking Strategy">
+                <div className="space-y-5">
+                   <div>
+                      <div className="flex justify-between mb-1">
+                        <label className="text-xs font-semibold text-neutral-500 uppercase">Chunk Size</label>
+                        <span className="text-xs font-mono text-neutral-900">{config.knowledge.chunkSize}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="256" 
+                        max="4096" 
+                        step="64"
+                        value={config.knowledge.chunkSize}
+                        onChange={(e) => updateConfig({ knowledge: {...config.knowledge, chunkSize: parseInt(e.target.value) }})}
+                        className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                      />
+                   </div>
+                   <div>
+                      <div className="flex justify-between mb-1">
+                        <label className="text-xs font-semibold text-neutral-500 uppercase">Overlap</label>
+                        <span className="text-xs font-mono text-neutral-900">{config.knowledge.overlap}</span>
+                      </div>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="500" 
+                        step="10"
+                        value={config.knowledge.overlap}
+                        onChange={(e) => updateConfig({ knowledge: {...config.knowledge, overlap: parseInt(e.target.value) }})}
+                        className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+                      />
+                   </div>
+                </div>
+            </Card>
+
+            <Card title="Vector Store">
+              <div>
+                  <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Storage Provider</label>
+                  <select 
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                    value={config.knowledge.vectorProvider || 'chroma'}
+                    onChange={(e) => updateConfig({ knowledge: {...config.knowledge, vectorProvider: e.target.value }})}
+                  >
+                    <option value="chroma">ChromaDB (Local/Server)</option>
+                    <option value="qdrant">Qdrant</option>
+                    <option value="pinecone">Pinecone</option>
+                  </select>
+              </div>
+            </Card>
+         </div>
+
+         {/* Right Column: Data Sources */}
+         <div className="lg:col-span-2 space-y-6">
+            <div className="flex items-end justify-between">
+               <div>
+                  <h3 className="text-lg font-semibold text-neutral-900">Data Sources</h3>
+                  <p className="text-sm text-neutral-500">Files and content the agent can access.</p>
+               </div>
+               <div className="flex items-center gap-2">
+                  <select 
+                    className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-900"
+                    value={uploadType}
+                    onChange={(e) => setUploadType(e.target.value as any)}
+                  >
+                    <option value="text">Text File</option>
+                    <option value="pdf">PDF Document</option>
+                    <option value="csv">CSV Data</option>
+                    <option value="excel">Excel Sheet</option>
+                    <option value="json">JSON Data</option>
+                    <option value="url">Website URL</option>
+                  </select>
+                  <Button onClick={addSource} icon={<span>+</span>}>Add</Button>
+               </div>
+            </div>
+
+            <div className="space-y-3">
+                {config.knowledge.sources.map((source) => (
+                    <div key={source.id} className="bg-white border border-neutral-200 rounded-xl p-4 flex items-center justify-between shadow-sm hover:shadow-md transition-all">
+                        <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center 
+                               ${source.type === 'pdf' ? 'bg-red-50 text-red-600' : 
+                                 source.type === 'excel' || source.type === 'csv' ? 'bg-green-50 text-green-600' :
+                                 source.type === 'json' ? 'bg-yellow-50 text-yellow-600' :
+                                 source.type === 'url' ? 'bg-blue-50 text-blue-600' :
+                                 'bg-neutral-100 text-neutral-600'
+                               }`}>
+                               {source.type === 'pdf' && <span className="font-bold text-[10px]">PDF</span>}
+                               {(source.type === 'csv' || source.type === 'excel') && <span className="font-bold text-[10px]">DATA</span>}
+                               {source.type === 'json' && <span className="font-bold text-[10px]">{source.type.toUpperCase()}</span>}
+                               {source.type === 'url' && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" /></svg>}
+                               {['file', 'text'].includes(source.type) && <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-medium text-neutral-900">{source.title}</h4>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium uppercase ${source.status === 'indexed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                        {source.status}
+                                    </span>
+                                    {source.sharedWithCrew && (
+                                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-medium uppercase flex items-center gap-1">
+                                            Crew Shared
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => toggleShared(source.id)} 
+                            title={source.sharedWithCrew ? "Unshare with Crew" : "Share with Crew"}
+                            className={source.sharedWithCrew ? "text-purple-600 bg-purple-50" : "text-neutral-400"}
+                          >
+                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setViewingSource(source)} title="View Details">
+                             <svg className="w-4 h-4 text-neutral-500 hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => removeSource(source.id)}>
+                              <svg className="w-4 h-4 text-neutral-400 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </Button>
+                        </div>
+                    </div>
+                ))}
+                {config.knowledge.sources.length === 0 && (
+                    <div className="h-64 flex flex-col items-center justify-center text-neutral-400 border-2 border-dashed border-neutral-200 rounded-xl">
+                        <div className="w-12 h-12 bg-neutral-50 rounded-full flex items-center justify-center mb-3">
+                           <svg className="w-6 h-6 text-neutral-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                        </div>
+                        <p className="text-sm font-medium">No knowledge sources added.</p>
+                        <p className="text-xs mt-1">Upload files (PDF, CSV, JSON) or generate content.</p>
+                    </div>
+                )}
+            </div>
+         </div>
+      </div>
+
+      {/* Preview Modal */}
+      {viewingSource && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+             {/* Header */}
+             <div className="px-6 py-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
+                <div>
+                   <h3 className="text-lg font-bold text-neutral-900">{viewingSource.title}</h3>
+                   <div className="flex gap-2 mt-1">
+                     <span className="text-[10px] bg-neutral-200 text-neutral-700 px-2 py-0.5 rounded-full uppercase tracking-wide font-bold">
+                        {viewingSource.type}
+                     </span>
+                     {viewingSource.sharedWithCrew && (
+                       <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full uppercase tracking-wide font-medium">
+                         Shared
+                       </span>
+                     )}
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setViewingSource(null)}
+                  className="p-2 hover:bg-neutral-200 rounded-full transition-colors text-neutral-500"
+                >
+                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+             </div>
+             
+             {/* Content */}
+             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar bg-white">
+                {viewingSource.content ? (
+                   <div className="prose prose-sm prose-neutral max-w-none">
+                      {viewingSource.content.split('\n').map((line, i) => (
+                        <p key={i} className="mb-2">{line}</p>
+                      ))}
+                   </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-neutral-400 py-10">
+                     <svg className="w-12 h-12 mb-3 text-neutral-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                     <p>Content preview not available for binary files.</p>
+                     <p className="text-xs mt-1">This file will be processed by the vector database upon deployment.</p>
+                  </div>
+                )}
+             </div>
+
+             {/* Footer */}
+             <div className="px-6 py-3 border-t border-neutral-100 bg-neutral-50 flex justify-end">
+                <Button variant="outline" size="sm" onClick={() => setViewingSource(null)}>Close</Button>
+             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default KnowledgeTab;
+
+
+
+================================================
+FILE: components/tabs/LLMTab.tsx
+================================================
+
+import React, { useState } from 'react';
+import { AgentConfig, LLMProvider, GeminiModel } from '../../types';
+import { Card } from '../ui/Card';
+import { Input } from '../ui/Input';
+import { Button } from '../ui/Button';
+import { generateLLMConfig } from '../../services/geminiService';
+
+interface LLMTabProps {
+  config: AgentConfig;
+  updateConfig: (updates: Partial<AgentConfig>) => void;
+}
+
+const LLMTab: React.FC<LLMTabProps> = ({ config, updateConfig }) => {
+  const [isOptimizing, setIsOptimizing] = useState(false);
+
+  const updateLLM = (field: keyof typeof config.llm, value: any) => {
+    updateConfig({ llm: { ...config.llm, [field]: value } });
+  };
+
+  const handleAutoConfigure = async () => {
+    setIsOptimizing(true);
+    try {
+      const recommendation = await generateLLMConfig({
+        name: config.name,
+        description: config.description,
+        tone: config.personaTone
+      });
+
+      if (recommendation) {
+        updateConfig({
+          llm: {
+            ...config.llm,
+            temperature: recommendation.temperature,
+            maxTokens: recommendation.maxTokens,
+            topK: recommendation.topK,
+            topP: recommendation.topP
+          }
+        });
+        console.log("AI Recommendation Reason:", recommendation.reasoning);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate configuration. Check API Key.");
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6 max-w-2xl animate-in fade-in duration-500">
+      <Card title="Model Selection" description="Choose the brain powering your agent.">
+        <div className="space-y-4">
+           <div className="flex justify-end">
+             <Button 
+               variant="secondary" 
+               size="sm" 
+               onClick={handleAutoConfigure} 
+               isLoading={isOptimizing}
+               icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>}
+             >
+               AI Auto-Configure
+             </Button>
+           </div>
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Provider</label>
+              <select 
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900"
+                value={config.llm.provider}
+                onChange={(e) => updateLLM('provider', e.target.value)}
+              >
+                <option value={LLMProvider.GOOGLE}>Google Gemini (Recommended)</option>
+                <option value={LLMProvider.OPENAI}>OpenAI</option>
+                <option value={LLMProvider.ANTHROPIC}>Anthropic</option>
+                <option value={LLMProvider.QWEN}>Qwen</option>
+                <option value={LLMProvider.CUSTOM}>Custom / Local</option>
+              </select>
+            </div>
+            
+             <Input 
+                label="API Key Environment Variable" 
+                value={config.llm.apiKeyEnvVar} 
+                onChange={(e) => updateLLM('apiKeyEnvVar', e.target.value)} 
+                placeholder="e.g. OPENAI_API_KEY"
+                className="font-mono"
+             />
+          </div>
+
+          {config.llm.provider === LLMProvider.GOOGLE && (
+            <div>
+              <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Gemini Model</label>
+              <select 
+                className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900 focus:border-neutral-900"
+                value={config.llm.model}
+                onChange={(e) => updateLLM('model', e.target.value)}
+              >
+                <optgroup label="Text & Reasoning">
+                  <option value={GeminiModel.GEMINI_2_5_FLASH}>Gemini 2.5 Flash</option>
+                  <option value={GeminiModel.GEMINI_FLASH_LATEST}>Gemini Flash Latest</option>
+                  <option value={GeminiModel.GEMINI_FLASH_LITE}>Gemini Flash Lite</option>
+                  <option value={GeminiModel.GEMINI_3_PRO}>Gemini 3.0 Pro Preview</option>
+                </optgroup>
+                <optgroup label="Multimodal (Image/Audio)">
+                  <option value={GeminiModel.GEMINI_2_5_FLASH_IMAGE}>Gemini 2.5 Flash Image</option>
+                  <option value={GeminiModel.GEMINI_3_PRO_IMAGE}>Gemini 3.0 Pro Image Preview</option>
+                  <option value={GeminiModel.GEMINI_NATIVE_AUDIO}>Gemini 2.5 Native Audio</option>
+                  <option value={GeminiModel.GEMINI_TTS}>Gemini 2.5 TTS</option>
+                </optgroup>
+                <optgroup label="Video">
+                  <option value={GeminiModel.VEO_FAST}>Veo Fast (Video)</option>
+                  <option value={GeminiModel.VEO_HQ}>Veo High Quality (Video)</option>
+                </optgroup>
+              </select>
+            </div>
+          )}
+
+           {config.llm.provider !== LLMProvider.GOOGLE && (
+             <Input label="Model ID" value={config.llm.model} onChange={(e) => updateLLM('model', e.target.value)} />
+           )}
+        </div>
+      </Card>
+
+      <Card title="Parameters" description="Fine-tune the model's creativity and constraints.">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+           <div>
+             <div className="flex justify-between mb-1">
+               <label className="text-xs font-semibold text-neutral-500 uppercase">Temperature</label>
+               <span className="text-xs font-mono text-neutral-900">{config.llm.temperature}</span>
+             </div>
+             <input 
+               type="range" 
+               min="0" 
+               max="2" 
+               step="0.1" 
+               value={config.llm.temperature}
+               onChange={(e) => updateLLM('temperature', parseFloat(e.target.value))}
+               className="w-full h-2 bg-neutral-200 rounded-lg appearance-none cursor-pointer accent-neutral-900"
+             />
+             <p className="text-xs text-neutral-400 mt-1">Lower for precision, higher for creativity.</p>
+           </div>
+
+           <div>
+             <Input 
+                label="Max Output Tokens" 
+                type="number" 
+                value={config.llm.maxTokens} 
+                onChange={(e) => updateLLM('maxTokens', parseInt(e.target.value))} 
+             />
+           </div>
+
+            <div>
+             <Input 
+                label="Top K" 
+                type="number" 
+                value={config.llm.topK} 
+                onChange={(e) => updateLLM('topK', parseInt(e.target.value))} 
+             />
+           </div>
+
+           <div>
+             <Input 
+                label="Top P" 
+                type="number" 
+                step="0.05"
+                max="1"
+                value={config.llm.topP} 
+                onChange={(e) => updateLLM('topP', parseFloat(e.target.value))} 
+             />
+           </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+export default LLMTab;
+
+
+================================================
+FILE: components/tabs/ProjectSettingsTab.tsx
+================================================
+
+import React from 'react';
+import { Project, TeamConfig } from '../../types';
+import { Card } from '../ui/Card';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { Button } from '../ui/Button';
+
+interface ProjectSettingsTabProps {
+  project: Project;
+  activeTeam: TeamConfig;
+  updateProject: (updates: Partial<Project>) => void;
+  updateTeamConfig: (updates: Partial<TeamConfig>) => void;
+}
+
+const ProjectSettingsTab: React.FC<ProjectSettingsTabProps> = ({ project, activeTeam, updateProject, updateTeamConfig }) => {
+  
+  const handleDelete = () => {
+     if (confirm("Are you sure you want to delete this project? This action cannot be undone.")) {
+        alert("Delete functionality would be implemented here (lifting state up to remove from org).");
+     }
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+         <div>
+           <h2 className="text-xl font-bold text-neutral-900">Project Settings</h2>
+           <p className="text-sm text-neutral-500">Manage high-level project details and team identity.</p>
+         </div>
+      </div>
+
+      <Card title="General Information">
+        <div className="grid grid-cols-1 gap-4">
+           <Input 
+             label="Project Name"
+             value={project.name}
+             onChange={(e) => updateProject({ name: e.target.value })}
+             placeholder="e.g. Customer Support Bot"
+           />
+           <Textarea 
+             label="Description"
+             value={project.description || ''}
+             onChange={(e) => updateProject({ description: e.target.value })}
+             placeholder="What is the purpose of this project?"
+             rows={3}
+           />
+        </div>
+      </Card>
+
+      <Card title="Active Team Identity">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+           <Input 
+             label="Crew / Team Name"
+             value={activeTeam.name}
+             onChange={(e) => updateTeamConfig({ name: e.target.value })}
+             placeholder="e.g. Support Crew"
+           />
+           <Textarea 
+             label="Team Description"
+             value={activeTeam.description || ''}
+             onChange={(e) => updateTeamConfig({ description: e.target.value })}
+             placeholder="What is this team responsible for?"
+             className="md:col-span-2"
+             rows={2}
+           />
+        </div>
+      </Card>
+
+      <div className="pt-6 border-t border-neutral-200">
+         <h3 className="text-sm font-bold text-red-600 uppercase tracking-wider mb-4">Danger Zone</h3>
+         <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-center justify-between">
+            <div>
+               <h4 className="text-sm font-semibold text-red-900">Delete Project</h4>
+               <p className="text-xs text-red-700 mt-1">Permanently remove this project and all its agents.</p>
+            </div>
+            <Button variant="danger" size="sm" onClick={handleDelete}>Delete Project</Button>
+         </div>
+      </div>
+    </div>
+  );
+};
+
+export default ProjectSettingsTab;
+
+
+================================================
+FILE: components/tabs/PromptsTab.tsx
+================================================
+
+import React, { useState } from 'react';
+import { AgentConfig, GlobalPrompt } from '../../types';
+import { Textarea } from '../ui/Textarea';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Input } from '../ui/Input';
+import { generateAgentContent } from '../../services/geminiService';
+
+interface PromptsTabProps {
+  config: AgentConfig;
+  updateConfig: (updates: Partial<AgentConfig>) => void;
+}
+
+const PromptsTab: React.FC<PromptsTabProps> = ({ config, updateConfig }) => {
+  const [isGenInstructions, setIsGenInstructions] = useState(false);
+  const [isGenGlobal, setIsGenGlobal] = useState<string | null>(null);
+
+  const handleGenerateInstructions = async () => {
+    setIsGenInstructions(true);
+    const baseInstructions = await generateAgentContent('instructions', {
+      name: config.name,
+      description: config.description,
+      tone: config.personaTone
+    });
+    updateConfig({ baseInstructions });
+    setIsGenInstructions(false);
+  };
+
+  const addGlobalPrompt = () => {
+    const newPrompt: GlobalPrompt = {
+      id: Date.now().toString(),
+      label: "New Prompt",
+      key: "new_prompt_key",
+      content: ""
+    };
+    updateConfig({ globalPrompts: [...config.globalPrompts, newPrompt] });
+  };
+
+  const removeGlobalPrompt = (id: string) => {
+    updateConfig({ globalPrompts: config.globalPrompts.filter(p => p.id !== id) });
+  };
+
+  const updateGlobalPrompt = (id: string, field: keyof GlobalPrompt, value: string) => {
+    updateConfig({
+      globalPrompts: config.globalPrompts.map(p => p.id === id ? { ...p, [field]: value } : p)
+    });
+  };
+
+  const generateSinglePrompt = async (id: string, label: string) => {
+    setIsGenGlobal(id);
+    const content = await generateAgentContent('prompt', {
+      name: config.name,
+      description: config.description,
+      tone: config.personaTone,
+      extra: label
+    });
+    updateGlobalPrompt(id, 'content', content);
+    setIsGenGlobal(null);
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl animate-in fade-in duration-500">
+      <Card 
+        title="Base Instructions" 
+        description="The core system prompt that governs the agent's behavior."
+        action={
+          <Button 
+            variant="secondary" 
+            size="sm" 
+            onClick={handleGenerateInstructions} 
+            isLoading={isGenInstructions}
+            icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+          >
+            Generate System Prompt
+          </Button>
+        }
+      >
+        <Textarea
+          value={config.baseInstructions}
+          onChange={(e) => updateConfig({ baseInstructions: e.target.value })}
+          className="font-mono text-xs"
+          rows={12}
+          placeholder="You are a helpful assistant..."
+        />
+      </Card>
+
+      <div className="flex items-center justify-between pt-4">
+        <h3 className="text-lg font-semibold text-neutral-900">Global Prompts</h3>
+        <Button size="sm" variant="outline" onClick={addGlobalPrompt} icon={<span>+</span>}>
+          Add Prompt Module
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {config.globalPrompts.map((prompt) => (
+          <Card key={prompt.id} className="relative group">
+             <div className="flex items-start gap-4 mb-3">
+                <div className="flex-1 grid grid-cols-2 gap-2">
+                  <Input 
+                    placeholder="Label (e.g. SEO Check)" 
+                    value={prompt.label} 
+                    onChange={(e) => updateGlobalPrompt(prompt.id, 'label', e.target.value)}
+                  />
+                   <Input 
+                    placeholder="Key (e.g. seo_check)" 
+                    value={prompt.key} 
+                    onChange={(e) => updateGlobalPrompt(prompt.id, 'key', e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+                <div className="flex gap-2">
+                   <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => generateSinglePrompt(prompt.id, prompt.label)}
+                      isLoading={isGenGlobal === prompt.id}
+                      title="Generate content based on label"
+                   >
+                     <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                   </Button>
+                   <Button variant="ghost" size="sm" onClick={() => removeGlobalPrompt(prompt.id)}>
+                      <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                   </Button>
+                </div>
+             </div>
+             <Textarea 
+                value={prompt.content}
+                onChange={(e) => updateGlobalPrompt(prompt.id, 'content', e.target.value)}
+                rows={4}
+                placeholder="Specific instructions for this module..."
+             />
+          </Card>
+        ))}
+        {config.globalPrompts.length === 0 && (
+           <div className="text-center py-8 border-2 border-dashed border-neutral-200 rounded-xl text-neutral-400 text-sm">
+             No global prompts defined. Add one to modularize your agent's logic.
+           </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default PromptsTab;
+
+
+
+================================================
+FILE: components/tabs/TasksTab.tsx
+================================================
+
+import React, { useState } from 'react';
+import { TeamConfig, TaskConfig, TaskOutputFormat } from '../../types';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { generateTaskDefinition } from '../../services/geminiService';
+
+interface TasksTabProps {
+  config: TeamConfig;
+  updateConfig: (updates: Partial<TeamConfig>) => void;
+}
+
+const TasksTab: React.FC<TasksTabProps> = ({ config, updateConfig }) => {
+  const [aiTaskPrompt, setAiTaskPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const tasks = config.tasks || [];
+
+  const addTask = () => {
+    const newTask: TaskConfig = {
+      id: `task-${Date.now()}`,
+      name: "New Task",
+      slug: "new_task",
+      description: "",
+      expectedOutput: "",
+      asyncExecution: false,
+      humanReview: false,
+      outputFormat: "raw",
+      contextTasks: [],
+      agentId: config.agents[0]?.id
+    };
+    updateConfig({ tasks: [...tasks, newTask] });
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiTaskPrompt.trim()) return;
+    setIsGenerating(true);
+    try {
+      const taskDef = await generateTaskDefinition(aiTaskPrompt);
+      const newTask: TaskConfig = {
+        id: `task-${Date.now()}`,
+        name: taskDef.name || "Generated Task",
+        slug: taskDef.slug || "generated_task",
+        description: taskDef.description || "",
+        expectedOutput: taskDef.expectedOutput || "",
+        tags: taskDef.tags || [],
+        asyncExecution: false,
+        humanReview: false,
+        outputFormat: "raw",
+        maxExecutionTime: taskDef.maxExecutionTime,
+        contextTasks: [],
+        agentId: config.agents[0]?.id
+      };
+      updateConfig({ tasks: [...tasks, newTask] });
+      setAiTaskPrompt("");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate task.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const removeTask = (id: string) => {
+    updateConfig({ tasks: tasks.filter(t => t.id !== id) });
+  };
+
+  const updateTask = (id: string, field: keyof TaskConfig, value: any) => {
+    updateConfig({
+      tasks: tasks.map(t => t.id === id ? { ...t, [field]: value } : t)
+    });
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl animate-in fade-in duration-500">
+      
+      {/* AI Generator */}
+      <Card className="bg-gradient-to-br from-purple-50 to-white border-purple-100">
+        <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="flex-1 w-full">
+            <Input 
+              label="AI Task Generator"
+              placeholder="e.g. A task to analyze website SEO performance and report scores."
+              value={aiTaskPrompt}
+              onChange={(e) => setAiTaskPrompt(e.target.value)}
+              className="bg-white"
+            />
+          </div>
+          <Button 
+            variant="secondary" 
+            onClick={handleAiGenerate} 
+            isLoading={isGenerating}
+            disabled={!aiTaskPrompt}
+            icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+          >
+            Generate Task
+          </Button>
+        </div>
+      </Card>
+
+      <div className="flex items-center justify-between mt-8">
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-900">Task Definitions</h3>
+          <p className="text-sm text-neutral-500">Define work and assign to agents in the team.</p>
+        </div>
+        <Button onClick={addTask} icon={<span>+</span>}>Add Task</Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        {tasks.map((task) => (
+          <Card key={task.id} className="flex flex-col gap-4 relative group">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input 
+                  label="Task Name"
+                  value={task.name}
+                  onChange={(e) => updateTask(task.id, 'name', e.target.value)}
+                />
+                <div>
+                   <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Assigned Agent</label>
+                   <select 
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                      value={task.agentId || ''}
+                      onChange={(e) => updateTask(task.id, 'agentId', e.target.value)}
+                   >
+                      <option value="" disabled>Select an Agent...</option>
+                      {config.agents.map(a => (
+                         <option key={a.id} value={a.id}>{a.name} ({a.role})</option>
+                      ))}
+                   </select>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => removeTask(task.id)} className="text-red-500 hover:bg-red-50">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </Button>
+            </div>
+
+            {/* Tags Input */}
+            <Input 
+              label="Tags (comma separated)"
+              value={task.tags?.join(', ') || ''}
+              onChange={(e) => updateTask(task.id, 'tags', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+              placeholder="e.g. seo, reporting"
+            />
+            
+            <Textarea 
+              label="Description / Instructions"
+              value={task.description}
+              onChange={(e) => updateTask(task.id, 'description', e.target.value)}
+              placeholder="Detailed instructions on what the task should do..."
+              rows={3}
+            />
+            
+            <Textarea 
+              label="Expected Output"
+              value={task.expectedOutput}
+              onChange={(e) => updateTask(task.id, 'expectedOutput', e.target.value)}
+              placeholder="Describe what the result should look like..."
+              rows={2}
+            />
+
+            {/* Dependencies Section */}
+            <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-200">
+               <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-3">
+                  Prerequisites & Context
+               </label>
+               {tasks.length > 1 ? (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                   {tasks.filter(t => t.id !== task.id).map(depTask => (
+                     <label key={depTask.id} className="flex items-center space-x-2 cursor-pointer hover:bg-neutral-100 p-1.5 rounded-md transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={task.contextTasks?.includes(depTask.id) || false}
+                          onChange={(e) => {
+                             const current = task.contextTasks || [];
+                             const updated = e.target.checked 
+                               ? [...current, depTask.id]
+                               : current.filter(id => id !== depTask.id);
+                             updateTask(task.id, 'contextTasks', updated);
+                          }}
+                          className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900" 
+                        />
+                        <div className="flex flex-col overflow-hidden">
+                           <span className="text-sm font-medium text-neutral-700 truncate" title={depTask.name}>{depTask.name}</span>
+                           <span className="text-[10px] text-neutral-400 font-mono truncate">{depTask.slug}</span>
+                        </div>
+                     </label>
+                   ))}
+                 </div>
+               ) : (
+                 <div className="text-xs text-neutral-400 italic">Add more tasks to create workflow dependencies.</div>
+               )}
+            </div>
+
+            <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-200 grid grid-cols-1 md:grid-cols-3 gap-6">
+               {/* Existing settings... */}
+               <div>
+                  <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Execution</label>
+                  <div className="space-y-2">
+                     <label className="flex items-center space-x-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={task.asyncExecution || false}
+                          onChange={(e) => updateTask(task.id, 'asyncExecution', e.target.checked)}
+                          className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900" 
+                        />
+                        <span className="text-sm text-neutral-700">Async Execution</span>
+                     </label>
+                     <label className="flex items-center space-x-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={task.humanReview || false}
+                          onChange={(e) => updateTask(task.id, 'humanReview', e.target.checked)}
+                          className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900" 
+                        />
+                        <span className="text-sm text-neutral-700">Requires Human Review</span>
+                     </label>
+                     <label className="flex items-center space-x-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={task.markdown || false}
+                          onChange={(e) => updateTask(task.id, 'markdown', e.target.checked)}
+                          className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900" 
+                        />
+                        <span className="text-sm text-neutral-700">Markdown Output</span>
+                     </label>
+                  </div>
+               </div>
+
+               <div>
+                  <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Format</label>
+                  <select 
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-900"
+                    value={task.outputFormat || 'raw'}
+                    onChange={(e) => updateTask(task.id, 'outputFormat', e.target.value as TaskOutputFormat)}
+                  >
+                    <option value="raw">Raw Text</option>
+                    <option value="json">JSON</option>
+                    <option value="pydantic">Pydantic Model</option>
+                  </select>
+                  
+                  {task.outputFormat === 'json' && (
+                     <div className="mt-2">
+                       <Textarea 
+                          label="Output JSON Schema"
+                          value={typeof task.outputJsonSchema === 'string' ? task.outputJsonSchema : JSON.stringify(task.outputJsonSchema, null, 2) || ""}
+                          onChange={(e) => updateTask(task.id, 'outputJsonSchema', e.target.value)}
+                          className="font-mono text-xs h-24"
+                          placeholder="{ ...schema... }"
+                       />
+                     </div>
+                  )}
+               </div>
+
+               <div>
+                 <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Timeouts & Limits</label>
+                 <div className="space-y-3">
+                    <Input 
+                       label="Max Time (seconds)" 
+                       type="number" 
+                       value={task.maxExecutionTime || ''} 
+                       onChange={(e) => updateTask(task.id, 'maxExecutionTime', parseInt(e.target.value))}
+                       placeholder="e.g. 180"
+                    />
+                    <Input 
+                       label="Max Retries" 
+                       type="number" 
+                       value={task.maxRetries || ''} 
+                       onChange={(e) => updateTask(task.id, 'maxRetries', parseInt(e.target.value))}
+                       placeholder="e.g. 2"
+                    />
+                 </div>
+               </div>
+            </div>
+            
+          </Card>
+        ))}
+        
+        {tasks.length === 0 && (
+          <div className="text-center py-12 bg-white border border-dashed border-neutral-300 rounded-xl">
+             <div className="w-12 h-12 bg-purple-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
+             </div>
+             <h3 className="text-sm font-medium text-neutral-900">No tasks defined</h3>
+             <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">Use tasks to break down complex agent behaviors into manageable steps.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default TasksTab;
+
+
+================================================
+FILE: components/tabs/TeamTab.tsx
+================================================
+
+import React, { useState, useEffect } from 'react';
+import { TeamConfig, AgentConfig, ProcessType, LLMProvider, GeminiModel } from '../../types';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+
+interface TeamTabProps {
+  config: TeamConfig;
+  updateConfig: (updates: Partial<TeamConfig>) => void;
+  setActiveAgentId: (id: string) => void;
+}
+
+const TeamTab: React.FC<TeamTabProps> = ({ config, updateConfig, setActiveAgentId }) => {
+  // 'agent' or 'llm'
+  const [managerType, setManagerType] = useState<'agent' | 'llm'>(config.managerAgentId ? 'agent' : 'llm');
+
+  // Sync local state if config changes externally
+  useEffect(() => {
+    if (config.process === 'hierarchical' && config.managerAgentId) {
+      setManagerType('agent');
+    }
+  }, [config.process, config.managerAgentId]);
+
+  const addAgent = () => {
+    const newAgent: AgentConfig = {
+      id: `agent-${Date.now()}`,
+      name: "New Agent",
+      slug: "new_agent",
+      role: "Assistant",
+      goal: "Help the user",
+      description: "A helpful AI assistant",
+      language: 'en',
+      status: 'draft',
+      currentVersion: 1,
+      personaTone: 'Professional',
+      emojiAllowed: true,
+      greeting: "Hello!",
+      baseInstructions: "You are a helpful assistant.",
+      globalPrompts: [],
+      llm: {
+        provider: LLMProvider.GOOGLE,
+        model: GeminiModel.GEMINI_2_5_FLASH,
+        apiKeyEnvVar: 'GEMINI_API_KEY',
+        temperature: 0.7,
+        maxTokens: 2048
+      },
+      tools: [],
+      knowledge: {
+        sources: [],
+        embedder: { provider: 'google', model: 'models/text-embedding-004' },
+        chunkSize: 1000,
+        overlap: 200,
+        topKRetrieval: 3
+      }
+    };
+    updateConfig({ agents: [...config.agents, newAgent] });
+  };
+
+  const removeAgent = (id: string) => {
+    if (config.agents.length <= 1) {
+      alert("A team must have at least one agent.");
+      return;
+    }
+    if (confirm("Are you sure? This will remove the agent and unassign their tasks.")) {
+      updateConfig({ agents: config.agents.filter(a => a.id !== id) });
+      // Clear manager if it was this agent
+      if (config.managerAgentId === id) {
+         updateConfig({ managerAgentId: undefined });
+         setManagerType('llm');
+      }
+    }
+  };
+
+  const updateManagerLLM = (field: string, value: string) => {
+    updateConfig({
+      managerLLM: {
+        provider: config.managerLLM?.provider || LLMProvider.GOOGLE,
+        model: config.managerLLM?.model || GeminiModel.GEMINI_2_5_FLASH,
+        [field]: value
+      }
+    });
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl animate-in fade-in duration-500">
+      
+      <div className="flex items-center justify-between">
+         <div>
+           <h2 className="text-xl font-bold text-neutral-900">Team Configuration</h2>
+           <p className="text-sm text-neutral-500">Assemble your crew of agents and define how they collaborate.</p>
+         </div>
+         <Button onClick={addAgent} icon={<span>+</span>}>Add Agent</Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Left Column: Process Settings */}
+        <div className="md:col-span-1 space-y-4">
+           <Card title="Process Flow">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Execution Process</label>
+                  <select
+                    className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                    value={config.process}
+                    onChange={(e) => updateConfig({ process: e.target.value as ProcessType })}
+                  >
+                    <option value="sequential">Sequential (Relay)</option>
+                    <option value="hierarchical">Hierarchical (Manager)</option>
+                  </select>
+                  <p className="text-[10px] text-neutral-400 mt-1">
+                    {config.process === 'sequential' 
+                      ? 'Tasks are executed in order one after another. Output of one is context for next.' 
+                      : 'A manager delegates tasks to the crew automatically and reviews results.'}
+                  </p>
+                </div>
+
+                {config.process === 'hierarchical' && (
+                  <div className="pt-4 border-t border-neutral-100">
+                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-2">Manager Configuration</label>
+                     
+                     <div className="flex gap-2 mb-3">
+                        <button 
+                          onClick={() => { setManagerType('llm'); updateConfig({ managerAgentId: undefined }); }}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded-md border ${managerType === 'llm' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-neutral-200 text-neutral-600'}`}
+                        >
+                          Auto (LLM)
+                        </button>
+                        <button 
+                          onClick={() => setManagerType('agent')}
+                          className={`flex-1 py-1.5 text-xs font-medium rounded-md border ${managerType === 'agent' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-neutral-200 text-neutral-600'}`}
+                        >
+                          Custom Agent
+                        </button>
+                     </div>
+
+                     {managerType === 'agent' ? (
+                       <div>
+                          <p className="text-[10px] text-neutral-400 mb-1.5">Select an agent from your crew to act as the Manager.</p>
+                          <select
+                            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 focus:ring-1 focus:ring-neutral-900"
+                            value={config.managerAgentId || ''}
+                            onChange={(e) => updateConfig({ managerAgentId: e.target.value })}
+                          >
+                            <option value="" disabled>Select Manager Agent...</option>
+                            {config.agents.map(agent => (
+                              <option key={agent.id} value={agent.id}>{agent.name} ({agent.role})</option>
+                            ))}
+                          </select>
+                       </div>
+                     ) : (
+                       <div className="space-y-2">
+                          <p className="text-[10px] text-neutral-400 mb-1">Configure the LLM that will plan and delegate.</p>
+                          <select 
+                            className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs text-neutral-900"
+                            value={config.managerLLM?.provider || LLMProvider.GOOGLE}
+                            onChange={(e) => updateManagerLLM('provider', e.target.value)}
+                          >
+                            <option value={LLMProvider.GOOGLE}>Google Gemini</option>
+                            <option value={LLMProvider.OPENAI}>OpenAI</option>
+                            <option value={LLMProvider.ANTHROPIC}>Anthropic</option>
+                          </select>
+                          <Input 
+                            placeholder="Model Name"
+                            value={config.managerLLM?.model || ''}
+                            onChange={(e) => updateManagerLLM('model', e.target.value)}
+                            className="text-xs"
+                          />
+                       </div>
+                     )}
+                  </div>
+                )}
+              </div>
+           </Card>
+        </div>
+
+        {/* Right Column: Roster */}
+        <div className="md:col-span-2 grid grid-cols-1 gap-4">
+           {config.agents.map((agent) => (
+             <Card key={agent.id} className={`relative group hover:border-neutral-300 transition-colors ${config.managerAgentId === agent.id ? 'ring-2 ring-indigo-500 border-transparent' : ''}`}>
+                {config.managerAgentId === agent.id && (
+                  <div className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm z-10">
+                    MANAGER
+                  </div>
+                )}
+                <div className="flex items-start justify-between gap-4">
+                   <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                         {agent.name.charAt(0)}
+                      </div>
+                      <div>
+                         <h3 className="font-semibold text-neutral-900">{agent.name}</h3>
+                         <p className="text-xs text-neutral-500">{agent.role}</p>
+                      </div>
+                   </div>
+                   <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="secondary"
+                        onClick={() => setActiveAgentId(agent.id)}
+                      >
+                        Edit Profile
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="ghost" 
+                        onClick={() => removeAgent(agent.id)}
+                        className="text-neutral-400 hover:text-red-600"
+                      >
+                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </Button>
+                   </div>
+                </div>
+                <div className="mt-3 pl-13">
+                    <p className="text-sm text-neutral-600 line-clamp-2">{agent.description}</p>
+                    <div className="flex items-center gap-4 mt-3 text-xs text-neutral-400 font-mono">
+                       <span className="flex items-center gap-1">
+                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                         {agent.llm.model}
+                       </span>
+                       <span className="flex items-center gap-1">
+                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                         {agent.tools.length} Tools
+                       </span>
+                    </div>
+                </div>
+             </Card>
+           ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TeamTab;
+
+
+================================================
+FILE: components/tabs/ToolsTab.tsx
+================================================
+
+import React, { useState } from 'react';
+import { AgentConfig, Tool } from '../../types';
+import { Card } from '../ui/Card';
+import { Button } from '../ui/Button';
+import { Input } from '../ui/Input';
+import { Textarea } from '../ui/Textarea';
+import { generateToolDefinition } from '../../services/geminiService';
+
+interface ToolsTabProps {
+  config: AgentConfig;
+  updateConfig: (updates: Partial<AgentConfig>) => void;
+}
+
+const ToolsTab: React.FC<ToolsTabProps> = ({ config, updateConfig }) => {
+  const [aiToolPrompt, setAiToolPrompt] = useState("");
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const addTool = () => {
+    const newTool: Tool = {
+      id: Date.now().toString(),
+      name: "New Tool",
+      slug: "new_tool",
+      type: "http",
+      description: "",
+      enabled: true,
+      httpMethod: "POST",
+      inputSchema: "{\n  \"type\": \"object\",\n  \"properties\": {}\n}",
+      outputSchema: "{\n  \"type\": \"object\",\n  \"properties\": {}\n}"
+    };
+    updateConfig({ tools: [...config.tools, newTool] });
+  };
+
+  const handleAiGenerate = async () => {
+    if (!aiToolPrompt.trim()) return;
+    setIsGenerating(true);
+    try {
+      const toolDef = await generateToolDefinition(aiToolPrompt);
+      const newTool: Tool = {
+        id: Date.now().toString(),
+        name: toolDef.name || "Generated Tool",
+        slug: toolDef.slug || "generated_tool",
+        type: (toolDef.type as any) || "http",
+        description: toolDef.description || "",
+        enabled: true,
+        httpMethod: "POST",
+        inputSchema: toolDef.inputSchema || "{\n  \"type\": \"object\",\n  \"properties\": {}\n}",
+        outputSchema: toolDef.outputSchema || "{\n  \"type\": \"object\",\n  \"properties\": {}\n}"
+      };
+      updateConfig({ tools: [...config.tools, newTool] });
+      setAiToolPrompt("");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to generate tool.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const removeTool = (id: string) => {
+    updateConfig({ tools: config.tools.filter(t => t.id !== id) });
+  };
+
+  const updateTool = (id: string, field: keyof Tool, value: any) => {
+    updateConfig({
+      tools: config.tools.map(t => t.id === id ? { ...t, [field]: value } : t)
+    });
+  };
+
+  return (
+    <div className="space-y-6 max-w-4xl animate-in fade-in duration-500">
+      
+      {/* AI Generator */}
+      <Card className="bg-gradient-to-br from-indigo-50 to-white border-indigo-100">
+        <div className="flex flex-col sm:flex-row gap-3 items-end">
+          <div className="flex-1 w-full">
+            <Input 
+              label="AI Tool Generator"
+              placeholder="e.g. I need a tool to check stock prices for a given ticker."
+              value={aiToolPrompt}
+              onChange={(e) => setAiToolPrompt(e.target.value)}
+              className="bg-white"
+            />
+          </div>
+          <Button 
+            variant="secondary" 
+            onClick={handleAiGenerate} 
+            isLoading={isGenerating}
+            disabled={!aiToolPrompt}
+            icon={<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+          >
+            Generate
+          </Button>
+        </div>
+      </Card>
+
+      <div className="flex items-center justify-between mt-8">
+        <div>
+          <h3 className="text-lg font-semibold text-neutral-900">External Tools</h3>
+          <p className="text-sm text-neutral-500">Enable your agent to interact with the world.</p>
+        </div>
+        <Button onClick={addTool} icon={<span>+</span>}>Add Empty Tool</Button>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4">
+        {config.tools.map((tool) => (
+          <Card key={tool.id} className="flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Input 
+                  label="Name"
+                  value={tool.name}
+                  onChange={(e) => updateTool(tool.id, 'name', e.target.value)}
+                />
+                <Input 
+                  label="Slug (Function Name)"
+                  value={tool.slug}
+                  className="font-mono"
+                  onChange={(e) => updateTool(tool.id, 'slug', e.target.value)}
+                />
+                <div className="flex flex-col gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Type</label>
+                    <select
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-900"
+                      value={tool.type}
+                      onChange={(e) => updateTool(tool.id, 'type', e.target.value as any)}
+                    >
+                      <option value="http">HTTP Request</option>
+                      <option value="webhook">Webhook</option>
+                      <option value="google_search">Google Search (Grounding)</option>
+                      <option value="google_maps">Google Maps (Grounding)</option>
+                      <option value="custom">Custom Code</option>
+                    </select>
+                  </div>
+                  <label className="flex items-center space-x-2 cursor-pointer pt-1">
+                      <input 
+                        type="checkbox" 
+                        checked={tool.enabled}
+                        onChange={(e) => updateTool(tool.id, 'enabled', e.target.checked)}
+                        className="rounded border-neutral-300 text-neutral-900 focus:ring-neutral-900" 
+                      />
+                      <span className="text-xs font-medium text-neutral-700">Enabled</span>
+                  </label>
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" className="mt-6" onClick={() => removeTool(tool.id)}>
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </Button>
+            </div>
+            
+            <Input 
+              label="Description / System hint"
+              value={tool.description}
+              onChange={(e) => updateTool(tool.id, 'description', e.target.value)}
+              placeholder="Describes when and how to use this tool..."
+            />
+            
+            {/* HTTP Specifics */}
+            {(tool.type === 'http' || tool.type === 'webhook') && (
+               <div className="bg-neutral-50 p-3 rounded-lg border border-neutral-200 grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="md:col-span-1">
+                     <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">Method</label>
+                     <select
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:ring-1 focus:ring-neutral-900"
+                      value={tool.httpMethod || 'POST'}
+                      onChange={(e) => updateTool(tool.id, 'httpMethod', e.target.value)}
+                    >
+                      <option value="GET">GET</option>
+                      <option value="POST">POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="DELETE">DELETE</option>
+                      <option value="PATCH">PATCH</option>
+                    </select>
+                  </div>
+                  <div className="md:col-span-3">
+                     <Input 
+                       label="Endpoint URL"
+                       value={tool.httpUrl || ''}
+                       onChange={(e) => updateTool(tool.id, 'httpUrl', e.target.value)}
+                       placeholder="https://api.example.com/v1/resource"
+                       className="font-mono"
+                     />
+                  </div>
+               </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              <Textarea 
+                label="Input Schema (JSON)"
+                value={tool.inputSchema || ""}
+                onChange={(e) => updateTool(tool.id, 'inputSchema', e.target.value)}
+                placeholder="{\n  &quot;type&quot;: &quot;object&quot;,\n  &quot;properties&quot;: { ... }\n}"
+                className="font-mono text-xs h-32"
+              />
+              <Textarea 
+                label="Output Schema (JSON)"
+                value={tool.outputSchema || ""}
+                onChange={(e) => updateTool(tool.id, 'outputSchema', e.target.value)}
+                placeholder="{\n  &quot;type&quot;: &quot;object&quot;,\n  &quot;properties&quot;: { ... }\n}"
+                className="font-mono text-xs h-32"
+              />
+            </div>
+          </Card>
+        ))}
+        {config.tools.length === 0 && (
+          <div className="text-center py-12 bg-white border border-dashed border-neutral-300 rounded-xl">
+             <div className="w-12 h-12 bg-neutral-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+             </div>
+             <h3 className="text-sm font-medium text-neutral-900">No tools configured</h3>
+             <p className="text-xs text-neutral-500 mt-1 max-w-xs mx-auto">Use the AI generator above or add tools manually.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ToolsTab;
+
+
+================================================
+FILE: components/ui/Button.tsx
+================================================
+import React from 'react';
+
+interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+  size?: 'sm' | 'md' | 'lg';
+  isLoading?: boolean;
+  icon?: React.ReactNode;
+}
+
+export const Button: React.FC<ButtonProps> = ({ 
+  children, 
+  variant = 'primary', 
+  size = 'md', 
+  isLoading, 
+  icon,
+  className = '',
+  ...props 
+}) => {
+  const baseStyles = "inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg";
+  
+  const variants = {
+    primary: "bg-neutral-900 text-white hover:bg-neutral-800 focus:ring-neutral-900 border border-transparent shadow-sm",
+    secondary: "bg-indigo-600 text-white hover:bg-indigo-700 focus:ring-indigo-600 border border-transparent shadow-sm",
+    outline: "bg-white text-neutral-700 border border-neutral-300 hover:bg-neutral-50 focus:ring-neutral-200",
+    ghost: "bg-transparent text-neutral-600 hover:bg-neutral-100 focus:ring-neutral-200",
+    danger: "bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 focus:ring-red-500",
+  };
+
+  const sizes = {
+    sm: "text-xs px-2.5 py-1.5 gap-1.5",
+    md: "text-sm px-4 py-2 gap-2",
+    lg: "text-base px-6 py-3 gap-2.5",
+  };
+
+  return (
+    <button 
+      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+      disabled={isLoading || props.disabled}
+      {...props}
+    >
+      {isLoading && (
+        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      )}
+      {!isLoading && icon && <span>{icon}</span>}
+      {children}
+    </button>
+  );
+};
+
+
+================================================
+FILE: components/ui/Card.tsx
+================================================
+import React from 'react';
+
+interface CardProps {
+  children: React.ReactNode;
+  className?: string;
+  title?: string;
+  description?: string;
+  action?: React.ReactNode;
+}
+
+export const Card: React.FC<CardProps> = ({ children, className = '', title, description, action }) => {
+  return (
+    <div className={`rounded-xl border border-neutral-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow duration-200 ${className}`}>
+      {(title || action) && (
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            {title && <h3 className="text-base font-semibold text-neutral-900 leading-tight">{title}</h3>}
+            {description && <p className="text-sm text-neutral-500 mt-1">{description}</p>}
+          </div>
+          {action && <div className="ml-4">{action}</div>}
+        </div>
+      )}
+      {children}
+    </div>
+  );
+};
+
+
+================================================
+FILE: components/ui/Input.tsx
+================================================
+import React from 'react';
+
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+  label?: string;
+  error?: string;
+}
+
+export const Input: React.FC<InputProps> = ({ label, error, className = '', ...props }) => {
+  return (
+    <div className="w-full">
+      {label && (
+        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+          {label}
+        </label>
+      )}
+      <input
+        className={`w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 shadow-sm transition-colors focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900 disabled:bg-neutral-50 ${className}`}
+        {...props}
+      />
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+};
+
+
+================================================
+FILE: components/ui/Textarea.tsx
+================================================
+import React from 'react';
+
+interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  label?: string;
+  error?: string;
+}
+
+export const Textarea: React.FC<TextareaProps> = ({ label, error, className = '', ...props }) => {
+  return (
+    <div className="w-full">
+      {label && (
+        <label className="block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-1.5">
+          {label}
+        </label>
+      )}
+      <textarea
+        className={`w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-900 placeholder-neutral-400 shadow-sm transition-colors focus:border-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-900 disabled:bg-neutral-50 min-h-[100px] resize-y ${className}`}
+        {...props}
+      />
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </div>
+  );
+};
+
+
+================================================
+FILE: services/agentExportService.ts
+================================================
+
+import { AgentConfig, LLMProvider, TaskConfig, FlowData } from "../types";
+
+export const generateAgentRuntimeZip = async (config: AgentConfig, tasks: TaskConfig[] = []) => {
+  const JSZip = (await import('jszip')).default;
+  const zip = new JSZip();
+
+  // 1. ROOT FILES
+  
+  // package.json
+  zip.file("package.json", JSON.stringify({
+    "name": config.slug,
+    "version": "1.0.0",
+    "description": config.description,
+    "main": "dist/index.js",
+    "scripts": {
+      "build": "tsc",
+      "start": "node dist/index.js",
+      "dev": "ts-node src/index.ts"
+    },
+    "dependencies": {
+      "express": "^4.18.2",
+      "dotenv": "^16.3.1",
+      "cors": "^2.8.5",
+      "body-parser": "^1.20.2",
+      "@google/genai": "^0.1.0",
+      "openai": "^4.20.1",
+      "axios": "^1.6.0"
+    },
+    "devDependencies": {
+      "typescript": "^5.3.2",
+      "@types/node": "^20.10.0",
+      "@types/express": "^4.17.21",
+      "@types/cors": "^2.8.17",
+      "ts-node": "^10.9.1"
+    }
+  }, null, 2));
+
+  // tsconfig.json
+  zip.file("tsconfig.json", JSON.stringify({
+    "compilerOptions": {
+      "target": "es2020",
+      "module": "commonjs",
+      "outDir": "./dist",
+      "rootDir": "./src",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true
+    }
+  }, null, 2));
+
+  // .env.example
+  const envContent = `PORT=3000
+# LLM Keys
+${config.llm.apiKeyEnvVar}=your_api_key_here
+# Tool Keys
+${config.tools.map(t => t.httpHeaders ? Object.keys(t.httpHeaders).join('\n') : '').join('\n')}
+`;
+  zip.file(".env.example", envContent);
+
+  // 2. SRC FILES
+
+  // src/config.ts - The brain of the agent
+  zip.file("src/config.ts", `
+import { AgentConfig } from './types';
+
+export const agentConfig: AgentConfig = ${JSON.stringify({ ...config, tasks }, null, 2)};
+`);
+
+  // src/types.ts
+  zip.file("src/types.ts", `
+export interface AgentConfig {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  language: string;
+  status: string;
+  personaTone: string;
+  prompts: {
+    greeting: string;
+    baseInstructions: string;
+    globalPrompts: any[];
+  };
+  llm: {
+    provider: string;
+    model: string;
+    apiKeyEnvVar: string;
+    temperature: number;
+    maxTokens: number;
+  };
+  tools: any[];
+  tasks?: any[];
+}
+`);
+
+  // src/llm.ts - The connector
+  zip.file("src/llm.ts", `
+import { GoogleGenAI } from "@google/genai";
+import OpenAI from "openai";
+import { agentConfig } from "./config";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+export async function generateResponse(messages: any[]) {
+  const provider = agentConfig.llm.provider;
+  const apiKey = process.env[agentConfig.llm.apiKeyEnvVar];
+
+  if (!apiKey) throw new Error(\`Missing API Key: \${agentConfig.llm.apiKeyEnvVar}\`);
+
+  // 1. GOOGLE GEMINI
+  if (provider === 'google') {
+    const ai = new GoogleGenAI({ apiKey });
+    // Construct the full context including system instructions
+    const systemInstruction = agentConfig.prompts.baseInstructions;
+    
+    // Note: This is a simplified implementation. 
+    // In a real scenario, you'd map 'messages' to Gemini content format properly.
+    const lastMessage = messages[messages.length - 1].content;
+    
+    const response = await ai.models.generateContent({
+      model: agentConfig.llm.model,
+      contents: lastMessage, // simplified
+      config: {
+        systemInstruction: systemInstruction,
+        temperature: agentConfig.llm.temperature,
+        maxOutputTokens: agentConfig.llm.maxTokens,
+      }
+    });
+    return response.text;
+  }
+
+  // 2. OPENAI
+  if (provider === 'openai') {
+    const openai = new OpenAI({ apiKey });
+    const systemMessage = { role: "system", content: agentConfig.prompts.baseInstructions };
+    
+    const response = await openai.chat.completions.create({
+      model: agentConfig.llm.model,
+      messages: [systemMessage, ...messages],
+      temperature: agentConfig.llm.temperature,
+      max_tokens: agentConfig.llm.maxTokens,
+    });
+    return response.choices[0].message.content;
+  }
+
+  throw new Error("Provider not supported in this runtime export yet.");
+}
+`);
+
+  // src/tools.ts - Generic HTTP Handler
+  zip.file("src/tools.ts", `
+import axios from "axios";
+import { agentConfig } from "./config";
+
+export async function executeTool(slug: string, params: any) {
+  const tool = agentConfig.tools.find(t => t.slug === slug);
+  if (!tool) throw new Error(\`Tool \${slug} not found\`);
+
+  if (tool.type === 'http' || tool.type === 'webhook') {
+    console.log(\`Executing HTTP Tool: \${tool.name}\`);
+    
+    // Replace env vars in headers
+    const headers: any = {};
+    if (tool.httpHeaders) {
+      for (const [key, val] of Object.entries(tool.httpHeaders)) {
+        const valueStr = val as string;
+        if (valueStr.includes('{{env.')) {
+            const envVar = valueStr.match(/{{env\.(.*?)}}/)?.[1];
+            if (envVar && process.env[envVar]) {
+                headers[key] = process.env[envVar];
+            }
+        } else {
+            headers[key] = valueStr;
+        }
+      }
+    }
+
+    try {
+      const response = await axios({
+        method: tool.httpMethod || 'POST',
+        url: tool.httpUrl,
+        headers: headers,
+        data: params
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error("Tool execution failed", error.message);
+      return { error: error.message };
+    }
+  }
+
+  return { error: "Tool type not implemented" };
+}
+`);
+
+  // src/index.ts - The Server
+  zip.file("src/index.ts", `
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import { agentConfig } from "./config";
+import { generateResponse } from "./llm";
+import { executeTool } from "./tools";
+
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const PORT = process.env.PORT || 3000;
+
+// Health check
+app.get("/", (req, res) => {
+  res.json({ 
+    status: "running", 
+    agent: agentConfig.name, 
+    version: agentConfig.currentVersion 
+  });
+});
+
+// Chat Endpoint
+app.post("/chat", async (req, res) => {
+  try {
+    const { messages } = req.body;
+    
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ error: "Messages array is required" });
+    }
+
+    console.log(\`Received message for agent: \${agentConfig.name}\`);
+
+    // 1. Generate Response
+    const responseText = await generateResponse(messages);
+
+    // 2. Check for Tool Calls (Simplified Regex for demo)
+    // In a real agent, you'd use the LLM's native function calling
+    // For this demo, we just return the text
+    
+    res.json({ 
+      response: responseText,
+      agent: agentConfig.name
+    });
+
+  } catch (error: any) {
+    console.error("Error processing request:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Tool Execution Endpoint (Direct)
+app.post("/tool/:slug", async (req, res) => {
+  const { slug } = req.params;
+  const params = req.body;
+  
+  try {
+    const result = await executeTool(slug, params);
+    res.json(result);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(\`\n🚀 Agent "\${agentConfig.name}" is running!\`);
+  console.log(\`📍 Local: http://localhost:\${PORT}\`);
+  console.log(\`📝 Slug: \${agentConfig.slug}\`);
+});
+`);
+
+  // README.md
+  zip.file("README.md", `# ${config.name}
+
+${config.description}
+
+## Setup
+
+1. Install dependencies:
+   \`\`\`bash
+   npm install
+   \`\`\`
+
+2. Configure Environment:
+   Copy \`.env.example\` to \`.env\` and fill in your API keys (e.g., \`${config.llm.apiKeyEnvVar}\`).
+
+3. Run:
+   \`\`\`bash
+   npm run dev
+   \`\`\`
+
+## API
+
+- **POST /chat**: Send messages to the agent.
+- **POST /tool/:slug**: Execute a specific tool directly.
+
+## Configuration
+This agent is powered by **${config.llm.provider}** (${config.llm.model}).
+Configuration is stored in \`src/config.ts\`.
+
+## Tasks
+This agent has **${tasks.length}** defined tasks available for execution.
+`);
+
+  return zip;
+};
+
+export const generatePocketFlowPythonZip = async (config: AgentConfig, tasks: TaskConfig[] = [], flowData?: FlowData) => {
+  const JSZip = (await import('jszip')).default;
+  const zip = new JSZip();
+
+  // 1. pocketflow.py (The Library)
+  zip.file("pocketflow.py", `import asyncio, warnings, copy, time
+
+class BaseNode:
+    def __init__(self): self.params,self.successors={},{}
+    def set_params(self,params): self.params=params
+    def next(self,node,action="default"):
+        if action in self.successors: warnings.warn(f"Overwriting successor for action '{action}'")
+        self.successors[action]=node; return node
+    def prep(self,shared): pass
+    def exec(self,prep_res): pass
+    def post(self,shared,prep_res,exec_res): pass
+    def _exec(self,prep_res): return self.exec(prep_res)
+    def _run(self,shared): p=self.prep(shared); e=self._exec(p); return self.post(shared,p,e)
+    def run(self,shared): 
+        if self.successors: warnings.warn("Node won't run successors. Use Flow.")  
+        return self._run(shared)
+    def __rshift__(self,other): return self.next(other)
+    def __sub__(self,action):
+        if isinstance(action,str): return _ConditionalTransition(self,action)
+        raise TypeError("Action must be a string")
+
+class _ConditionalTransition:
+    def __init__(self,src,action): self.src,self.action=src,action
+    def __rshift__(self,tgt): return self.src.next(tgt,self.action)
+
+class Node(BaseNode):
+    def __init__(self,max_retries=1,wait=0): super().__init__(); self.max_retries,self.wait=max_retries,wait
+    def exec_fallback(self,prep_res,exc): raise exc
+    def _exec(self,prep_res):
+        for self.cur_retry in range(self.max_retries):
+            try: return self.exec(prep_res)
+            except Exception as e:
+                if self.cur_retry==self.max_retries-1: return self.exec_fallback(prep_res,e)
+                if self.wait>0: time.sleep(self.wait)
+
+class BatchNode(Node):
+    def _exec(self,items): return [super(BatchNode,self)._exec(i) for i in (items or [])]
+
+class Flow(BaseNode):
+    def __init__(self,start=None): super().__init__(); self.start_node=start
+    def start(self,start): self.start_node=start; return start
+    def get_next_node(self,curr,action):
+        nxt=curr.successors.get(action or "default")
+        if not nxt and curr.successors: warnings.warn(f"Flow ends: '{action}' not found in {list(curr.successors)}")
+        return nxt
+    def _orch(self,shared,params=None):
+        curr,p,last_action =copy.copy(self.start_node),(params or {**self.params}),None
+        while curr: curr.set_params(p); last_action=curr._run(shared); curr=copy.copy(self.get_next_node(curr,last_action))
+        return last_action
+    def _run(self,shared): p=self.prep(shared); o=self._orch(shared); return self.post(shared,p,o)
+    def post(self,shared,prep_res,exec_res): return exec_res
+
+class BatchFlow(Flow):
+    def _run(self,shared):
+        pr=self.prep(shared) or []
+        for bp in pr: self._orch(shared,{**self.params,**bp})
+        return self.post(shared,pr,None)
+
+class AsyncNode(Node):
+    async def prep_async(self,shared): pass
+    async def exec_async(self,prep_res): pass
+    async def exec_fallback_async(self,prep_res,exc): raise exc
+    async def post_async(self,shared,prep_res,exec_res): pass
+    async def _exec(self,prep_res): 
+        for self.cur_retry in range(self.max_retries):
+            try: return await self.exec_async(prep_res)
+            except Exception as e:
+                if self.cur_retry==self.max_retries-1: return await self.exec_fallback_async(prep_res,e)
+                if self.wait>0: await asyncio.sleep(self.wait)
+    async def run_async(self,shared): 
+        if self.successors: warnings.warn("Node won't run successors. Use AsyncFlow.")  
+        return await self._run_async(shared)
+    async def _run_async(self,shared): p=await self.prep_async(shared); e=await self._exec(p); return await self.post_async(shared,p,e)
+    def _run(self,shared): raise RuntimeError("Use run_async.")
+
+class AsyncBatchNode(AsyncNode,BatchNode):
+    async def _exec(self,items): return [await super(AsyncBatchNode,self)._exec(i) for i in items]
+
+class AsyncParallelBatchNode(AsyncNode,BatchNode):
+    async def _exec(self,items): return await asyncio.gather(*(super(AsyncParallelBatchNode,self)._exec(i) for i in items))
+
+class AsyncFlow(Flow,AsyncNode):
+    async def _orch_async(self,shared,params=None):
+        curr,p,last_action =copy.copy(self.start_node),(params or {**self.params}),None
+        while curr: curr.set_params(p); last_action=await curr._run_async(shared) if isinstance(curr,AsyncNode) else curr._run(shared); curr=copy.copy(self.get_next_node(curr,last_action))
+        return last_action
+    async def _run_async(self,shared): p=await self.prep_async(shared); o=await self._orch_async(shared); return await self.post_async(shared,p,o)
+    async def post_async(self,shared,prep_res,exec_res): return exec_res
+
+class AsyncBatchFlow(AsyncFlow,BatchFlow):
+    async def _run_async(self,shared):
+        pr=await self.prep_async(shared) or []
+        for bp in pr: await self._orch_async(shared,{**self.params,**bp})
+        return await self.post_async(shared,pr,None)
+
+class AsyncParallelBatchFlow(AsyncFlow,BatchFlow):
+    async def _run_async(self,shared): 
+        pr=await self.prep_async(shared) or []
+        await asyncio.gather(*(self._orch_async(shared,{**self.params,**bp}) for bp in pr))
+        return await self.post_async(shared,pr,None)
+`);
+
+  // 2. main.py
+  // Construct Python nodes based on flowData or tasks
+  let mainPy = `import asyncio
+from pocketflow import AsyncFlow, AsyncNode
+import os
+
+# Configuration
+AGENT_NAME = "${config.name}"
+API_KEY = os.getenv("${config.llm.apiKeyEnvVar}")
+
+class AgentContext:
+    def __init__(self):
+        self.history = []
+        self.data = {}
+
+# --- NODES ---
+`;
+
+  // Generate Nodes from Visual Flow if available, otherwise generic
+  if (flowData && flowData.nodes.length > 0) {
+    flowData.nodes.forEach(node => {
+        mainPy += `
+class ${node.type.charAt(0).toUpperCase() + node.type.slice(1)}Node_${node.id.replace(/-/g, '_')}(AsyncNode):
+    async def prep_async(self, shared):
+        print(f"Processing Node: ${node.label}")
+        return shared
+
+    async def exec_async(self, shared):
+        # Logic for ${node.label}
+        return "success"
+
+    async def post_async(self, shared, prep_res, exec_res):
+        return "default"
+`;
+    });
+
+    mainPy += `
+# --- FLOW ORCHESTRATION ---
+async def main():
+    shared = AgentContext()
+    
+    # Instantiate Nodes
+`;
+    flowData.nodes.forEach(node => {
+        mainPy += `    node_${node.id.replace(/-/g, '_')} = ${node.type.charAt(0).toUpperCase() + node.type.slice(1)}Node_${node.id.replace(/-/g, '_')}()\n`;
+    });
+
+    mainPy += `\n    # Define Edges\n`;
+    flowData.edges.forEach(edge => {
+        mainPy += `    node_${edge.source.replace(/-/g, '_')} >> node_${edge.target.replace(/-/g, '_')}\n`;
+    });
+
+    const startNode = flowData.nodes.find(n => n.type === 'start') || flowData.nodes[0];
+    mainPy += `
+    # Create Flow
+    flow = AsyncFlow(start=node_${startNode.id.replace(/-/g, '_')})
+    
+    # Run
+    print("Starting PocketFlow for ${config.name}...")
+    await flow.run_async(shared)
+    print("Flow Complete.")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+`;
+
+  } else {
+    // Fallback generic structure
+    mainPy += `
+class StartNode(AsyncNode):
+    async def exec_async(self, shared):
+        print("Agent Started")
+        return "next"
+
+class EndNode(AsyncNode):
+    async def exec_async(self, shared):
+        print("Agent Finished")
+        return "done"
+
+async def main():
+    shared = AgentContext()
+    start = StartNode()
+    end = EndNode()
+    
+    start >> end
+    
+    flow = AsyncFlow(start=start)
+    await flow.run_async(shared)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+`;
+  }
+
+  zip.file("main.py", mainPy);
+
+  // requirements.txt
+  zip.file("requirements.txt", `aiohttp\npython-dotenv\n`);
+
+  // README.md
+  zip.file("README.md", `# ${config.name} - PocketFlow Agent
+
+This agent uses the lightweight PocketFlow library for orchestration.
+
+## Setup
+1. Install Python 3.8+
+2. \`pip install -r requirements.txt\`
+3. Set env var: \`export ${config.llm.apiKeyEnvVar}=your_key\`
+
+## Run
+\`python main.py\`
+`);
+
+  return zip;
+};
+
+
+
+================================================
+FILE: services/geminiService.ts
+================================================
+
+import { GoogleGenAI, Type } from "@google/genai";
+import { FlowData } from "../types";
+
+// Initialize the client safely
+const getClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    console.warn("API Key not found in environment variables.");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey });
+};
+
+export const generateAgentContent = async (
+  type: 'greeting' | 'instructions' | 'prompt',
+  context: { name: string; description: string; tone: string; extra?: string }
+): Promise<string> => {
+  const client = getClient();
+  if (!client) return "Error: API Key missing.";
+
+  let prompt = "";
+
+  if (type === 'greeting') {
+    prompt = `You are an expert AI Agent designer. Create a short, engaging, and welcoming greeting message for an AI agent named "${context.name}".
+    Context/Description: ${context.description}.
+    Tone: ${context.tone}.
+    The greeting should be ready to use directly.`;
+  } else if (type === 'instructions') {
+    prompt = `You are an expert AI Agent designer. Create a comprehensive set of system instructions (system prompt) for an AI agent named "${context.name}".
+    Description: ${context.description}.
+    Tone: ${context.tone}.
+    Use markdown bullet points. Focus on behavior, constraints, and goals.`;
+  } else if (type === 'prompt') {
+    prompt = `Create a specific prompt block for the following specific task: "${context.extra}".
+    Agent Name: ${context.name}.
+    Keep it precise and optimized for LLMs.`;
+  }
+
+  try {
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+    
+    return response.text || "";
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    return "Error generating content. Please try again.";
+  }
+};
+
+export const generateLLMConfig = async (
+  context: { name: string; description: string; tone: string }
+) => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `Analyze the following AI agent requirements and recommend the best LLM parameters.
+  Agent Name: ${context.name}
+  Description: ${context.description}
+  Tone: ${context.tone}
+
+  Recommend temperature, maxTokens, topK, and topP.
+  `;
+
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          temperature: { type: Type.NUMBER },
+          maxTokens: { type: Type.INTEGER },
+          topK: { type: Type.INTEGER },
+          topP: { type: Type.NUMBER },
+          reasoning: { type: Type.STRING, description: "Brief explanation of why these settings were chosen" }
+        },
+        required: ["temperature", "maxTokens", "topK", "topP"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || "{}");
+};
+
+export const generateToolDefinition = async (
+  description: string
+) => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `Create a tool definition based on this description: "${description}".
+  Generate a name, a unique slug (function_style), and a system description explaining when the AI should use it.
+  Suggest the most appropriate type (http, webhook, google_search, google_maps).
+  
+  IMPORTANT: Also generate a 'inputSchema' and 'outputSchema' as stringified JSON Schema objects. 
+  The input schema should define parameters needed. 
+  The output schema should define the expected response structure.
+  Example schema string: "{\\"type\\": \\"object\\", \\"properties\\": {\\"query\\": {\\"type\\": \\"string\\"}}}"`;
+
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          slug: { type: Type.STRING },
+          description: { type: Type.STRING },
+          type: { type: Type.STRING },
+          inputSchema: { type: Type.STRING, description: "JSON Schema string for input" },
+          outputSchema: { type: Type.STRING, description: "JSON Schema string for output" }
+        },
+        required: ["name", "slug", "description", "type"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || "{}");
+};
+
+export const generateTaskDefinition = async (
+  description: string
+) => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `Create a structural Task definition for an AI agent based on this description: "${description}".
+  
+  Generate:
+  - name (Human readable)
+  - slug (snake_case identifier)
+  - description (detailed instructions for the AI)
+  - expectedOutput (description of success criteria)
+  - tags (list of keywords)
+  - maxExecutionTime (reasonable default in seconds)
+  
+  Return strictly valid JSON.`;
+
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          slug: { type: Type.STRING },
+          description: { type: Type.STRING },
+          expectedOutput: { type: Type.STRING },
+          tags: { type: Type.ARRAY, items: { type: Type.STRING } },
+          maxExecutionTime: { type: Type.INTEGER }
+        },
+        required: ["name", "slug", "description", "expectedOutput"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || "{}");
+};
+
+
+export const generateKnowledgeContent = async (
+  topic: string,
+  context: { name: string; description: string }
+) => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `Write a comprehensive knowledge base article or fact sheet about "${topic}".
+  This content is for an AI agent named "${context.name}" to use as reference.
+  Agent Context: ${context.description}.
+  Format: Structured text with headers.`;
+
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+  });
+
+  return response.text || "";
+};
+
+export const recommendEmbedderConfig = async (
+  context: { name: string; description: string }
+) => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `Recommend Knowledge Base (RAG) configuration for an agent.
+  Agent: ${context.name}
+  Description: ${context.description}
+  
+  Recommend:
+  - chunkSize: (number, e.g. 1000)
+  - overlap: (number, e.g. 200)
+  - embeddingProvider: (google, openai, azure, ollama)
+  - embeddingModel: (specific model name)
+  - reasoning: (short explanation)
+  
+  Default to Google embeddings if unsure.`;
+
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          chunkSize: { type: Type.INTEGER },
+          overlap: { type: Type.INTEGER },
+          embeddingProvider: { type: Type.STRING },
+          embeddingModel: { type: Type.STRING },
+          reasoning: { type: Type.STRING }
+        },
+        required: ["chunkSize", "overlap", "embeddingProvider", "embeddingModel"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text || "{}");
+};
+
+export const generateProjectIcon = async (
+  projectName: string,
+  description: string
+) => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `Create a simple, modern, and rounded SVG icon code for a project named "${projectName}".
+  Description: "${description}".
+  
+  Requirements:
+  - Return ONLY the raw <svg>...</svg> string.
+  - Viewbox 0 0 24 24.
+  - Use currentColor for stroke/fill where appropriate or neutral colors.
+  - Keep it minimal and professional.
+  - No markdown fencing, just the code.
+  
+  If you cannot generate SVG code, return a single Emoji that best represents the project.
+  `;
+
+  try {
+    const response = await client.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+    });
+    
+    let text = response.text?.trim() || "📁";
+    // Clean up if model added markdown blocks despite instructions
+    if (text.startsWith('```xml')) text = text.replace(/```xml/g, '').replace(/```/g, '');
+    if (text.startsWith('```svg')) text = text.replace(/```svg/g, '').replace(/```/g, '');
+    
+    return text;
+  } catch (e) {
+    return "📁"; // Fallback
+  }
+};
+
+// --- FLOW GENERATION ---
+
+const FLOW_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    summary: { type: Type.STRING, description: "A brief textual summary of the strategy." },
+    nodes: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          label: { type: Type.STRING },
+          type: { type: Type.STRING, enum: ["start", "action", "decision", "end"] },
+          description: { type: Type.STRING },
+          x: { type: Type.NUMBER, description: "X coordinate for visualization (0-800)" },
+          y: { type: Type.NUMBER, description: "Y coordinate for visualization (0-600)" }
+        },
+        required: ["id", "label", "type", "x", "y"]
+      }
+    },
+    edges: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          id: { type: Type.STRING },
+          source: { type: Type.STRING, description: "ID of the source node" },
+          target: { type: Type.STRING, description: "ID of the target node" },
+          label: { type: Type.STRING, description: "Label for the connecting line, e.g., 'Yes', 'No'" }
+        },
+        required: ["id", "source", "target"]
+      }
+    }
+  },
+  required: ["summary", "nodes", "edges"]
+};
+
+export const generateStructuredFlow = async (
+  context: { name: string; description: string }
+): Promise<FlowData> => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `Design a conversation flow for an AI agent named "${context.name}".
+  Description: ${context.description}.
+  
+  Return a structured JSON representation of the flow nodes and edges for a flowchart.
+  Arrange the 'x' and 'y' coordinates logically so the flow goes from Top to Bottom.
+  - Start node at y=0.
+  - Subsequent nodes increase in y.
+  - Branching nodes spread in x.
+  `;
+
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: FLOW_SCHEMA as any
+    }
+  });
+
+  return JSON.parse(response.text || "{}");
+};
+
+export const iterateFlowStructure = async (
+  currentFlow: FlowData,
+  userRequest: string
+): Promise<FlowData> => {
+  const client = getClient();
+  if (!client) throw new Error("API Key missing");
+
+  const prompt = `You are refining an existing AI Agent conversation flow.
+  
+  Current Flow JSON: ${JSON.stringify(currentFlow)}
+  
+  User Request for Change: "${userRequest}"
+  
+  Update the flow (nodes and edges) to accommodate the user's request.
+  Ensure the layout (x, y coordinates) remains logical (Top to Bottom flow).
+  Return the complete updated JSON.
+  `;
+
+  const response = await client.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: FLOW_SCHEMA as any
+    }
+  });
+
+  return JSON.parse(response.text || "{}");
+};
+

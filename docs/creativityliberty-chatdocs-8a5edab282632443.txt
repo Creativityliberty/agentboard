@@ -1,0 +1,1207 @@
+Directory structure:
+└── creativityliberty-chatdocs/
+    ├── README.md
+    ├── App.tsx
+    ├── index.css
+    ├── index.html
+    ├── index.tsx
+    ├── metadata.json
+    ├── package.json
+    ├── tsconfig.json
+    ├── types.ts
+    ├── vite.config.ts
+    ├── components/
+    │   ├── ChatInterface.tsx
+    │   ├── KnowledgeBaseManager.tsx
+    │   ├── MessageItem.tsx
+    │   ├── ThemeSwitcher.tsx
+    │   └── icons/
+    │       ├── LightBulbIcon.tsx
+    │       ├── PaperAirplaneIcon.tsx
+    │       ├── PlusIcon.tsx
+    │       └── TrashIcon.tsx
+    └── services/
+        └── geminiService.ts
+
+================================================
+FILE: README.md
+================================================
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/drive/11mV9cSgXULeD4ndQOuZbNUY006yqmvm_
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
+
+
+
+================================================
+FILE: App.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+import React, { useState, useEffect, useCallback } from 'react';
+import { ChatMessage, MessageSender, URLGroup } from './types';
+import { generateContentWithUrlContext, getInitialSuggestions } from './services/geminiService';
+import KnowledgeBaseManager from './components/KnowledgeBaseManager';
+import ChatInterface from './components/ChatInterface';
+
+const GEMINI_DOCS_URLS = [
+  "https://ai.google.dev/gemini-api/docs",
+  "https://ai.google.dev/gemini-api/docs/quickstart",
+  "https://ai.google.dev/gemini-api/docs/api-key",
+  "https://ai.google.dev/gemini-api/docs/libraries",
+  "https://ai.google.dev/gemini-api/docs/models",
+  "https://ai.google.dev/gemini-api/docs/pricing",
+  "https://ai.google.dev/gemini-api/docs/rate-limits",
+  "https://ai.google.dev/gemini-api/docs/billing",
+  "https://ai.google.dev/gemini-api/docs/changelog",
+];
+
+const MODEL_CAPABILITIES_URLS = [
+  "https://ai.google.dev/gemini-api/docs/text-generation",
+  "https://ai.google.dev/gemini-api/docs/image-generation",
+  "https://ai.google.dev/gemini-api/docs/video",
+  "https://ai.google.dev/gemini-api/docs/speech-generation",
+  "https://ai.google.dev/gemini-api/docs/music-generation",
+  "https://ai.google.dev/gemini-api/docs/long-context",
+  "https://ai.google.dev/gemini-api/docs/structured-output",
+  "https://ai.google.dev/gemini-api/docs/thinking",
+  "https://ai.google.dev/gemini-api/docs/function-calling",
+  "https://ai.google.dev/gemini-api/docs/document-processing",
+  "https://ai.google.dev/gemini-api/docs/image-understanding",
+  "https://ai.google.dev/gemini-api/docs/video-understanding",
+  "https://ai.google.dev/gemini-api/docs/audio",
+  "https://ai.google.dev/gemini-api/docs/code-execution",
+  "https://ai.google.dev/gemini-api/docs/grounding",
+];
+
+const INITIAL_URL_GROUPS: URLGroup[] = [
+  { id: 'gemini-overview', name: 'Gemini Docs Overview', urls: GEMINI_DOCS_URLS },
+  { id: 'model-capabilities', name: 'Model Capabilities', urls: MODEL_CAPABILITIES_URLS },
+];
+
+const App: React.FC = () => {
+  const [urlGroups, setUrlGroups] = useState<URLGroup[]>(INITIAL_URL_GROUPS);
+  const [activeUrlGroupId, setActiveUrlGroupId] = useState<string>(INITIAL_URL_GROUPS[0].id);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetchingSuggestions, setIsFetchingSuggestions] = useState(false);
+  const [initialQuerySuggestions, setInitialQuerySuggestions] = useState<string[]>([]);
+  
+  const MAX_URLS = 20;
+
+  const activeGroup = urlGroups.find(group => group.id === activeUrlGroupId);
+  const currentUrlsForChat = activeGroup ? activeGroup.urls : [];
+
+   useEffect(() => {
+    const apiKey = process.env.API_KEY;
+    const currentActiveGroup = urlGroups.find(group => group.id === activeUrlGroupId);
+    const welcomeMessageText = !apiKey 
+        ? 'ERROR: Gemini API Key (process.env.API_KEY) is not configured. Please set this environment variable to use the application.'
+        : `Welcome to Documentation Browser! You're currently browsing content from: "${currentActiveGroup?.name || 'None'}". Just ask me questions, or try one of the suggestions below to get started`;
+    
+    setChatMessages([{
+      id: `system-welcome-${activeUrlGroupId}-${Date.now()}`,
+      text: welcomeMessageText,
+      sender: MessageSender.SYSTEM,
+      timestamp: new Date(),
+    }]);
+  }, [activeUrlGroupId, urlGroups]); 
+
+
+  const fetchAndSetInitialSuggestions = useCallback(async (currentUrls: string[]) => {
+    if (currentUrls.length === 0) {
+      setInitialQuerySuggestions([]);
+      return;
+    }
+      
+    setIsFetchingSuggestions(true);
+    setInitialQuerySuggestions([]); 
+
+    try {
+      const response = await getInitialSuggestions(currentUrls); 
+      let suggestionsArray: string[] = [];
+      if (response.text) {
+        try {
+          let jsonStr = response.text.trim();
+          const fenceRegex = /^```(\w*)?\s*\n?(.*?)\n?\s*```$/s; 
+          const match = jsonStr.match(fenceRegex);
+          if (match && match[2]) {
+            jsonStr = match[2].trim();
+          }
+          const parsed = JSON.parse(jsonStr);
+          if (parsed && Array.isArray(parsed.suggestions)) {
+            suggestionsArray = parsed.suggestions.filter((s: unknown) => typeof s === 'string');
+          } else {
+            console.warn("Parsed suggestions response, but 'suggestions' array not found or invalid:", parsed);
+             setChatMessages(prev => [...prev, { id: `sys-err-suggestion-fmt-${Date.now()}`, text: "Received suggestions in an unexpected format.", sender: MessageSender.SYSTEM, timestamp: new Date() }]);
+          }
+        } catch (parseError) {
+          console.error("Failed to parse suggestions JSON:", parseError, "Raw text:", response.text);
+          setChatMessages(prev => [...prev, { id: `sys-err-suggestion-parse-${Date.now()}`, text: "Error parsing suggestions from AI.", sender: MessageSender.SYSTEM, timestamp: new Date() }]);
+        }
+      }
+      setInitialQuerySuggestions(suggestionsArray.slice(0, 4)); 
+    } catch (e: any) {
+      const errorMessage = e.message || 'Failed to fetch initial suggestions.';
+      setChatMessages(prev => [...prev, { id: `sys-err-suggestion-fetch-${Date.now()}`, text: `Error fetching suggestions: ${errorMessage}`, sender: MessageSender.SYSTEM, timestamp: new Date() }]);
+    } finally {
+      setIsFetchingSuggestions(false);
+    }
+  }, []); 
+
+  useEffect(() => {
+    if (currentUrlsForChat.length > 0 && process.env.API_KEY) { 
+        fetchAndSetInitialSuggestions(currentUrlsForChat);
+    } else {
+        setInitialQuerySuggestions([]); 
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUrlsForChat, fetchAndSetInitialSuggestions]); 
+
+
+  const handleAddUrl = (url: string) => {
+    setUrlGroups(prevGroups => 
+      prevGroups.map(group => {
+        if (group.id === activeUrlGroupId) {
+          if (group.urls.length < MAX_URLS && !group.urls.includes(url)) {
+            return { ...group, urls: [...group.urls, url] };
+          }
+        }
+        return group;
+      })
+    );
+  };
+
+  const handleRemoveUrl = (urlToRemove: string) => {
+    setUrlGroups(prevGroups =>
+      prevGroups.map(group => {
+        if (group.id === activeUrlGroupId) {
+          return { ...group, urls: group.urls.filter(url => url !== urlToRemove) };
+        }
+        return group;
+      })
+    );
+  };
+
+  const handleSendMessage = async (query: string) => {
+    if (!query.trim() || isLoading || isFetchingSuggestions) return;
+
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+       setChatMessages(prev => [...prev, {
+        id: `error-apikey-${Date.now()}`,
+        text: 'ERROR: API Key (process.env.API_KEY) is not configured. Please set it up to send messages.',
+        sender: MessageSender.SYSTEM,
+        timestamp: new Date(),
+      }]);
+      return;
+    }
+    
+    setIsLoading(true);
+    setInitialQuerySuggestions([]); 
+
+    const userMessage: ChatMessage = {
+      id: `user-${Date.now()}`,
+      text: query,
+      sender: MessageSender.USER,
+      timestamp: new Date(),
+    };
+    
+    const modelPlaceholderMessage: ChatMessage = {
+      id: `model-response-${Date.now()}`,
+      text: 'Thinking...', 
+      sender: MessageSender.MODEL,
+      timestamp: new Date(),
+      isLoading: true,
+    };
+
+    setChatMessages(prevMessages => [...prevMessages, userMessage, modelPlaceholderMessage]);
+
+    try {
+      const response = await generateContentWithUrlContext(query, currentUrlsForChat);
+      setChatMessages(prevMessages =>
+        prevMessages.map(msg =>
+          msg.id === modelPlaceholderMessage.id
+            ? { ...modelPlaceholderMessage, text: response.text || "I received an empty response.", isLoading: false, urlContext: response.urlContextMetadata }
+            : msg
+        )
+      );
+    } catch (e: any) {
+      const errorMessage = e.message || 'Failed to get response from AI.';
+      setChatMessages(prevMessages =>
+        prevMessages.map(msg =>
+          msg.id === modelPlaceholderMessage.id
+            ? { ...modelPlaceholderMessage, text: `Error: ${errorMessage}`, sender: MessageSender.SYSTEM, isLoading: false } 
+            : msg
+        )
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSuggestedQueryClick = (query: string) => {
+    handleSendMessage(query);
+  };
+  
+  const chatPlaceholder = currentUrlsForChat.length > 0 
+    ? `Ask questions about "${activeGroup?.name || 'current documents'}"...`
+    : "Select a group and/or add URLs to the knowledge base to enable chat.";
+
+  return (
+    <div 
+      className="h-screen max-h-screen antialiased relative overflow-x-hidden bg-[#121212] text-[#E2E2E2]"
+    >
+      {/* Overlay for mobile */}
+      {isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 z-20 md:hidden"
+          onClick={() => setIsSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      
+      <div className="flex h-full w-full md:p-4 md:gap-4">
+        {/* Sidebar */}
+        <div className={`
+          fixed top-0 left-0 h-full w-11/12 max-w-sm z-30 transform transition-transform ease-in-out duration-300 p-3
+          md:static md:p-0 md:w-1/3 lg:w-1/4 md:h-full md:max-w-none md:translate-x-0 md:z-auto
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        `}>
+          <KnowledgeBaseManager
+            urls={currentUrlsForChat}
+            onAddUrl={handleAddUrl}
+            onRemoveUrl={handleRemoveUrl}
+            maxUrls={MAX_URLS}
+            urlGroups={urlGroups}
+            activeUrlGroupId={activeUrlGroupId}
+            onSetGroupId={setActiveUrlGroupId}
+            onCloseSidebar={() => setIsSidebarOpen(false)}
+          />
+        </div>
+
+        {/* Chat Interface */}
+        <div className="w-full h-full p-3 md:p-0 md:w-2/3 lg:w-3/4">
+          <ChatInterface
+            messages={chatMessages}
+            onSendMessage={handleSendMessage}
+            isLoading={isLoading}
+            placeholderText={chatPlaceholder}
+            initialQuerySuggestions={initialQuerySuggestions}
+            onSuggestedQueryClick={handleSuggestedQueryClick}
+            isFetchingSuggestions={isFetchingSuggestions}
+            onToggleSidebar={() => setIsSidebarOpen(true)}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
+
+
+================================================
+FILE: index.css
+================================================
+
+body { 
+  margin: 0; 
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  /* Default dark theme body bg and text set in App.tsx via Tailwind */
+  transition: background-color 0.2s ease-out, color 0.2s ease-out;
+}
+
+/* Dark theme scrollbar */
+.chat-container::-webkit-scrollbar { width: 6px; }
+.chat-container::-webkit-scrollbar-thumb { background-color: #4A4A4A; border-radius: 3px; }
+.chat-container::-webkit-scrollbar-track { background-color: #282828; }
+
+
+/* Basic styling for rendered markdown - Dark Theme */
+.prose h1 { font-size: 1.5em; font-weight: bold; margin-top: 0.8em; margin-bottom: 0.4em; color: #E2E2E2; }
+.prose h2 { font-size: 1.25em; font-weight: bold; margin-top: 0.7em; margin-bottom: 0.35em; color: #E2E2E2; }
+.prose h3 { font-size: 1.1em; font-weight: bold; margin-top: 0.6em; margin-bottom: 0.3em; color: #E2E2E2; }
+.prose p { margin-bottom: 0.4em; line-height: 1.5; color: #E2E2E2; }
+.prose ul, .prose ol { margin-left: 1.25em; margin-bottom: 0.4em; color: #E2E2E2; }
+.prose li { margin-bottom: 0.2em; color: #E2E2E2; }
+.prose strong { font-weight: bold; color: #E2E2E2; }
+.prose em { font-style: italic; color: #E2E2E2; }
+.prose code { /* background-color and color managed by highlight.js theme */ padding: 0.2em 0.4em; border-radius: 3px; font-family: 'Courier New', Courier, monospace; font-size: 0.9em; }
+.prose pre { /* background-color and color managed by highlight.js theme */ padding: 0.8em; border-radius: 4px; overflow-x: auto; margin-bottom: 0.5em; }
+.prose pre code { background-color: transparent; padding: 0; font-size: 0.9em; color: inherit; }
+.prose blockquote { border-left: 3px solid #4A4A4A; margin-left: 0; padding-left: 1em; color: #A8ABB4; margin-bottom: 0.5em;}
+.prose a { color: #79B8FF; text-decoration: underline; }
+
+
+
+================================================
+FILE: index.html
+================================================
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Documentation Browser</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/index.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.0.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "marked": "https://esm.sh/marked@^13.0.2",
+    "lucide-react": "https://esm.sh/lucide-react@^0.417.0",
+    "highlight.js": "https://esm.sh/highlight.js@^11.9.0"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
+
+
+================================================
+FILE: index.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
+}
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+
+
+================================================
+FILE: metadata.json
+================================================
+{
+  "name": "Copy of Chat with Docs",
+  "description": "See the URL Context tool in action. Chat with Gemini to explore API documentation.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
+
+
+================================================
+FILE: package.json
+================================================
+{
+  "name": "copy-of-chat-with-docs",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.1",
+    "react-dom": "^19.1.0",
+    "react": "^19.1.0",
+    "marked": "^13.0.2",
+    "lucide-react": "^0.417.0",
+    "highlight.js": "^11.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+
+
+
+================================================
+FILE: tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
+
+
+================================================
+FILE: types.ts
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+export enum MessageSender {
+  USER = 'user',
+  MODEL = 'model',
+  SYSTEM = 'system',
+}
+
+export interface UrlContextMetadataItem {
+  retrievedUrl: string; // Changed from retrieved_url
+  urlRetrievalStatus: string; // Changed from url_retrieval_status
+}
+
+export interface ChatMessage {
+  id: string;
+  text: string;
+  sender: MessageSender;
+  timestamp: Date;
+  isLoading?: boolean;
+  urlContext?: UrlContextMetadataItem[];
+}
+
+export interface URLGroup {
+  id: string;
+  name: string;
+  urls: string[];
+}
+
+
+
+================================================
+FILE: vite.config.ts
+================================================
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, '.', '');
+    return {
+      server: {
+        port: 3000,
+        host: '0.0.0.0',
+      },
+      plugins: [react()],
+      define: {
+        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      },
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+        }
+      }
+    };
+});
+
+
+
+================================================
+FILE: components/ChatInterface.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+import React, { useState, useRef, useEffect } from 'react';
+import { ChatMessage, MessageSender } from '../types'; 
+import MessageItem from './MessageItem';
+import { Send, Menu } from 'lucide-react';
+
+interface ChatInterfaceProps {
+  messages: ChatMessage[];
+  onSendMessage: (query: string) => void;
+  isLoading: boolean;
+  placeholderText?: string;
+  initialQuerySuggestions?: string[];
+  onSuggestedQueryClick?: (query: string) => void;
+  isFetchingSuggestions?: boolean;
+  onToggleSidebar?: () => void;
+}
+
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+  messages, 
+  onSendMessage, 
+  isLoading, 
+  placeholderText,
+  initialQuerySuggestions,
+  onSuggestedQueryClick,
+  isFetchingSuggestions,
+  onToggleSidebar,
+}) => {
+  const [userQuery, setUserQuery] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(scrollToBottom, [messages]);
+
+  const handleSend = () => {
+    if (userQuery.trim() && !isLoading) {
+      onSendMessage(userQuery.trim());
+      setUserQuery('');
+    }
+  };
+
+  const showSuggestions = initialQuerySuggestions && initialQuerySuggestions.length > 0 && messages.filter(m => m.sender !== MessageSender.SYSTEM).length <= 1;
+
+  return (
+    <div className="flex flex-col h-full bg-[#1E1E1E] rounded-xl shadow-md border border-[rgba(255,255,255,0.05)]">
+      <div className="p-4 border-b border-[rgba(255,255,255,0.05)] flex justify-between items-center">
+        <div className="flex items-center gap-3">
+           {onToggleSidebar && (
+            <button 
+              onClick={onToggleSidebar}
+              className="p-1.5 text-[#A8ABB4] hover:text-white rounded-md hover:bg-white/10 transition-colors md:hidden"
+              aria-label="Open knowledge base"
+            >
+              <Menu size={20} />
+            </button>
+          )}
+          <div>
+            <h2 className="text-xl font-semibold text-[#E2E2E2]">Documentation Browser</h2>
+            {placeholderText && messages.filter(m => m.sender !== MessageSender.SYSTEM).length === 0 && (
+               <p className="text-xs text-[#A8ABB4] mt-1 max-w-md truncate" title={placeholderText}>{placeholderText}</p>
+            )}
+          </div>
+        </div>
+        {/* ThemeSwitcher removed */}
+      </div>
+
+      <div className="flex-grow p-4 overflow-y-auto chat-container bg-[#282828]">
+        {/* New wrapper for max-width and centering */}
+        <div className="max-w-4xl mx-auto w-full">
+          {messages.map((msg) => (
+            <MessageItem key={msg.id} message={msg} />
+          ))}
+          
+          {isFetchingSuggestions && (
+              <div className="flex justify-center items-center p-3">
+                  <div className="flex items-center space-x-1.5 text-[#A8ABB4]">
+                      <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                      <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                      <div className="w-1.5 h-1.5 bg-current rounded-full animate-bounce"></div>
+                      <span className="text-sm">Fetching suggestions...</span>
+                  </div>
+              </div>
+          )}
+
+          {showSuggestions && onSuggestedQueryClick && (
+            <div className="my-3 px-1">
+              <p className="text-xs text-[#A8ABB4] mb-1.5 font-medium">Or try one of these: </p>
+              <div className="flex flex-wrap gap-1.5">
+                {initialQuerySuggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => onSuggestedQueryClick(suggestion)}
+                    className="bg-[#79B8FF]/10 text-[#79B8FF] px-2.5 py-1 rounded-full text-xs hover:bg-[#79B8FF]/20 transition-colors shadow-sm"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-[rgba(255,255,255,0.05)] bg-[#1E1E1E] rounded-b-xl">
+        <div className="flex items-center gap-2">
+          <textarea
+            value={userQuery}
+            onChange={(e) => setUserQuery(e.target.value)}
+            placeholder="Ask about the documents..."
+            className="flex-grow h-8 min-h-[32px] py-1.5 px-2.5 border border-[rgba(255,255,255,0.1)] bg-[#2C2C2C] text-[#E2E2E2] placeholder-[#777777] rounded-lg focus:ring-1 focus:ring-white/20 focus:border-white/20 transition-shadow resize-none text-sm"
+            rows={1}
+            disabled={isLoading || isFetchingSuggestions}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={isLoading || isFetchingSuggestions || !userQuery.trim()}
+            className="h-8 w-8 p-1.5 bg-white/[.12] hover:bg-white/20 text-white rounded-lg transition-colors disabled:bg-[#4A4A4A] disabled:text-[#777777] flex items-center justify-center flex-shrink-0"
+            aria-label="Send message"
+          >
+            {(isLoading && messages[messages.length-1]?.isLoading && messages[messages.length-1]?.sender === MessageSender.MODEL) ? 
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> 
+              : <Send size={16} />
+            }
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ChatInterface;
+
+
+
+================================================
+FILE: components/KnowledgeBaseManager.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+import React, { useState } from 'react';
+import { Plus, Trash2, ChevronDown, X } from 'lucide-react';
+import { URLGroup } from '../types';
+
+interface KnowledgeBaseManagerProps {
+  urls: string[];
+  onAddUrl: (url: string) => void;
+  onRemoveUrl: (url: string) => void;
+  maxUrls?: number;
+  urlGroups: URLGroup[];
+  activeUrlGroupId: string;
+  onSetGroupId: (id: string) => void;
+  onCloseSidebar?: () => void;
+}
+
+const KnowledgeBaseManager: React.FC<KnowledgeBaseManagerProps> = ({ 
+  urls, 
+  onAddUrl, 
+  onRemoveUrl, 
+  maxUrls = 20,
+  urlGroups,
+  activeUrlGroupId,
+  onSetGroupId,
+  onCloseSidebar,
+}) => {
+  const [currentUrlInput, setCurrentUrlInput] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const isValidUrl = (urlString: string): boolean => {
+    try {
+      new URL(urlString);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  const handleAddUrl = () => {
+    if (!currentUrlInput.trim()) {
+      setError('URL cannot be empty.');
+      return;
+    }
+    if (!isValidUrl(currentUrlInput)) {
+      setError('Invalid URL format. Please include http:// or https://');
+      return;
+    }
+    if (urls.length >= maxUrls) {
+      setError(`You can add a maximum of ${maxUrls} URLs to the current group.`);
+      return;
+    }
+    if (urls.includes(currentUrlInput)) {
+      setError('This URL has already been added to the current group.');
+      return;
+    }
+    onAddUrl(currentUrlInput);
+    setCurrentUrlInput('');
+    setError(null);
+  };
+
+  const activeGroupName = urlGroups.find(g => g.id === activeUrlGroupId)?.name || "Unknown Group";
+
+  return (
+    <div className="p-4 bg-[#1E1E1E] shadow-md rounded-xl h-full flex flex-col border border-[rgba(255,255,255,0.05)]">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-semibold text-[#E2E2E2]">Knowledge Base URLs</h2>
+        {onCloseSidebar && (
+          <button
+            onClick={onCloseSidebar}
+            className="p-1 text-[#A8ABB4] hover:text-white rounded-md hover:bg-white/10 transition-colors md:hidden"
+            aria-label="Close knowledge base"
+          >
+            <X size={24} />
+          </button>
+        )}
+      </div>
+      
+      <div className="mb-3">
+        <label htmlFor="url-group-select-kb" className="block text-sm font-medium text-[#A8ABB4] mb-1">
+          Active URL Group
+        </label>
+        <div className="relative w-full">
+          <select
+            id="url-group-select-kb"
+            value={activeUrlGroupId}
+            onChange={(e) => onSetGroupId(e.target.value)}
+            className="w-full py-2 pl-3 pr-8 appearance-none border border-[rgba(255,255,255,0.1)] bg-[#2C2C2C] text-[#E2E2E2] rounded-md focus:ring-1 focus:ring-white/20 focus:border-white/20 text-sm"
+          >
+            {urlGroups.map(group => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+          <ChevronDown
+            className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A8ABB4] pointer-events-none"
+            aria-hidden="true"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-3">
+        <input
+          type="url"
+          value={currentUrlInput}
+          onChange={(e) => setCurrentUrlInput(e.target.value)}
+          placeholder="https://docs.example.com"
+          className="flex-grow h-8 py-1 px-2.5 border border-[rgba(255,255,255,0.1)] bg-[#2C2C2C] text-[#E2E2E2] placeholder-[#777777] rounded-lg focus:ring-1 focus:ring-white/20 focus:border-white/20 transition-shadow text-sm"
+          onKeyPress={(e) => e.key === 'Enter' && handleAddUrl()}
+        />
+        <button
+          onClick={handleAddUrl}
+          disabled={urls.length >= maxUrls}
+          className="h-8 w-8 p-1.5 bg-white/[.12] hover:bg-white/20 text-white rounded-lg transition-colors disabled:bg-[#4A4A4A] disabled:text-[#777777] flex items-center justify-center"
+          aria-label="Add URL"
+        >
+          <Plus size={16} />
+        </button>
+      </div>
+      {error && <p className="text-xs text-[#f87171] mb-2">{error}</p>}
+      {urls.length >= maxUrls && <p className="text-xs text-[#fbbf24] mb-2">Maximum {maxUrls} URLs reached for this group.</p>}
+      
+      <div className="flex-grow overflow-y-auto space-y-2 chat-container">
+        {urls.length === 0 && (
+          <p className="text-[#777777] text-center py-3 text-sm">Add documentation URLs to the group "{activeGroupName}" to start querying.</p>
+        )}
+        {urls.map((url) => (
+          <div key={url} className="flex items-center justify-between p-2.5 bg-[#2C2C2C] border border-[rgba(255,255,255,0.05)] rounded-lg hover:shadow-sm transition-shadow">
+            <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-[#79B8FF] hover:underline truncate" title={url}>
+              {url}
+            </a>
+            <button 
+              onClick={() => onRemoveUrl(url)}
+              className="p-1 text-[#A8ABB4] hover:text-[#f87171] rounded-md hover:bg-[rgba(255,0,0,0.1)] transition-colors flex-shrink-0 ml-2"
+              aria-label={`Remove ${url}`}
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default KnowledgeBaseManager;
+
+
+
+================================================
+FILE: components/MessageItem.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+import React from 'react';
+import { marked } from 'marked';
+import hljs from 'highlight.js';
+import { ChatMessage, MessageSender, UrlContextMetadataItem } from '../types';
+
+// Configure marked to use highlight.js for syntax highlighting
+marked.setOptions({
+  highlight: function(code, lang) {
+    const language = hljs.getLanguage(lang) ? lang : 'plaintext';
+    return hljs.highlight(code, { language }).value;
+  },
+  langPrefix: 'hljs language-', // Prefix for CSS classes
+} as any); // Added 'as any' to bypass the type error
+
+interface MessageItemProps {
+  message: ChatMessage;
+}
+
+const SenderAvatar: React.FC<{ sender: MessageSender }> = ({ sender }) => {
+  let avatarChar = '';
+  let bgColorClass = '';
+  let textColorClass = '';
+
+  if (sender === MessageSender.USER) {
+    avatarChar = 'U';
+    bgColorClass = 'bg-white/[.12]';
+    textColorClass = 'text-white';
+  } else if (sender === MessageSender.MODEL) {
+    avatarChar = 'AI';
+    bgColorClass = 'bg-[#777777]'; 
+    textColorClass = 'text-[#E2E2E2]';
+  } else { // SYSTEM
+    avatarChar = 'S';
+    bgColorClass = 'bg-[#4A4A4A]';
+    textColorClass = 'text-[#E2E2E2]';
+  }
+
+  return (
+    <div className={`w-8 h-8 rounded-full ${bgColorClass} ${textColorClass} flex items-center justify-center text-sm font-semibold flex-shrink-0`}>
+      {avatarChar}
+    </div>
+  );
+};
+
+const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
+  const isUser = message.sender === MessageSender.USER;
+  const isModel = message.sender === MessageSender.MODEL;
+  const isSystem = message.sender === MessageSender.SYSTEM;
+
+  const renderMessageContent = () => {
+    if (isModel && !message.isLoading) {
+      const proseClasses = "prose prose-sm prose-invert w-full min-w-0"; 
+      const rawMarkup = marked.parse(message.text || "") as string;
+      return <div className={proseClasses} dangerouslySetInnerHTML={{ __html: rawMarkup }} />;
+    }
+    
+    let textColorClass = '';
+    if (isUser) {
+        textColorClass = 'text-white';
+    } else if (isSystem) {
+        textColorClass = 'text-[#A8ABB4]';
+    } else { // Model loading, also use prose colors
+        textColorClass = 'text-[#E2E2E2]';
+    }
+    return <div className={`whitespace-pre-wrap text-sm ${textColorClass}`}>{message.text}</div>;
+  };
+  
+  let bubbleClasses = "p-3 rounded-lg shadow w-full "; // Added w-full
+
+  if (isUser) {
+    bubbleClasses += "bg-white/[.12] text-white rounded-br-none";
+  } else if (isModel) {
+    bubbleClasses += `bg-[rgba(119,119,119,0.10)] border-t border-[rgba(255,255,255,0.04)] backdrop-blur-lg rounded-bl-none`;
+  } else { // System message
+    bubbleClasses += "bg-[#2C2C2C] text-[#A8ABB4] rounded-bl-none";
+  }
+
+  return (
+    <div className={`flex mb-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex items-start gap-2 max-w-[85%]`}>
+        {!isUser && <SenderAvatar sender={message.sender} />}
+        <div className={bubbleClasses}>
+          {message.isLoading ? (
+            <div className="flex items-center space-x-1.5">
+              <div className={`w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.3s] ${isUser ? 'bg-white' : 'bg-[#A8ABB4]'}`}></div>
+              <div className={`w-1.5 h-1.5 rounded-full animate-bounce [animation-delay:-0.15s] ${isUser ? 'bg-white' : 'bg-[#A8ABB4]'}`}></div>
+              <div className={`w-1.5 h-1.5 rounded-full animate-bounce ${isUser ? 'bg-white' : 'bg-[#A8ABB4]'}`}></div>
+            </div>
+          ) : (
+            renderMessageContent()
+          )}
+          
+          {isModel && message.urlContext && message.urlContext.length > 0 && (
+            <div className="mt-2.5 pt-2.5 border-t border-[rgba(255,255,255,0.1)]">
+              <h4 className="text-xs font-semibold text-[#A8ABB4] mb-1">Context URLs Retrieved:</h4>
+              <ul className="space-y-0.5">
+                {message.urlContext.map((meta, index) => {
+                  const statusText = typeof meta.urlRetrievalStatus === 'string' 
+                    ? meta.urlRetrievalStatus.replace('URL_RETRIEVAL_STATUS_', '') 
+                    : 'UNKNOWN';
+                  const isSuccess = meta.urlRetrievalStatus === 'URL_RETRIEVAL_STATUS_SUCCESS';
+
+                  return (
+                    <li key={index} className="text-[11px] text-[#A8ABB4]">
+                      <a href={meta.retrievedUrl} target="_blank" rel="noopener noreferrer" className="hover:underline break-all text-[#79B8FF]">
+                        {meta.retrievedUrl}
+                      </a>
+                      <span className={`ml-1.5 px-1 py-0.5 rounded-sm text-[9px] ${
+                        isSuccess
+                          ? 'bg-white/[.12] text-white'
+                          : 'bg-slate-600/30 text-slate-400'
+                      }`}>
+                        {statusText}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </div>
+        {isUser && <SenderAvatar sender={message.sender} />}
+      </div>
+    </div>
+  );
+};
+
+export default MessageItem;
+
+
+
+================================================
+FILE: components/ThemeSwitcher.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+
+
+================================================
+FILE: components/icons/LightBulbIcon.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+
+
+================================================
+FILE: components/icons/PaperAirplaneIcon.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+
+
+================================================
+FILE: components/icons/PlusIcon.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+
+
+================================================
+FILE: components/icons/TrashIcon.tsx
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+
+
+================================================
+FILE: services/geminiService.ts
+================================================
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+*/
+
+
+import { GoogleGenAI, GenerateContentResponse, Tool, HarmCategory, HarmBlockThreshold, Content } from "@google/genai";
+import { UrlContextMetadataItem } from '../types';
+
+// IMPORTANT: The API key MUST be set as an environment variable `process.env.API_KEY`
+const API_KEY = process.env.API_KEY;
+
+let ai: GoogleGenAI;
+
+// Model supporting URL context, consistent with user examples and documentation.
+const MODEL_NAME = "gemini-2.5-flash"; 
+
+const getAiInstance = (): GoogleGenAI => {
+  if (!API_KEY) {
+    console.error("API_KEY is not set in environment variables. Please set process.env.API_KEY.");
+    throw new Error("Gemini API Key not configured. Set process.env.API_KEY.");
+  }
+  if (!ai) {
+    ai = new GoogleGenAI({ apiKey: API_KEY });
+  }
+  return ai;
+};
+
+const safetySettings = [
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+];
+
+interface GeminiResponse {
+  text: string;
+  urlContextMetadata?: UrlContextMetadataItem[];
+}
+
+export const generateContentWithUrlContext = async (
+  prompt: string,
+  urls: string[]
+): Promise<GeminiResponse> => {
+  const currentAi = getAiInstance();
+  
+  let fullPrompt = prompt;
+  if (urls.length > 0) {
+    const urlList = urls.join('\n');
+    fullPrompt = `${prompt}\n\nRelevant URLs for context:\n${urlList}`;
+  }
+
+  const tools: Tool[] = [{ urlContext: {} }];
+  const contents: Content[] = [{ role: "user", parts: [{ text: fullPrompt }] }];
+
+  try {
+    const response: GenerateContentResponse = await currentAi.models.generateContent({
+      model: MODEL_NAME,
+      contents: contents,
+      config: { 
+        tools: tools,
+        safetySettings: safetySettings,
+      },
+    });
+
+    const text = response.text;
+    const candidate = response.candidates?.[0];
+    let extractedUrlContextMetadata: UrlContextMetadataItem[] | undefined = undefined;
+
+    if (candidate && candidate.urlContextMetadata && candidate.urlContextMetadata.urlMetadata) {
+      console.log("Raw candidate.urlContextMetadata.urlMetadata from API/SDK:", JSON.stringify(candidate.urlContextMetadata.urlMetadata, null, 2));
+      // Assuming SDK converts snake_case to camelCase, UrlContextMetadataItem type (now camelCase) should match items in urlMetadata.
+      extractedUrlContextMetadata = candidate.urlContextMetadata.urlMetadata as UrlContextMetadataItem[];
+    } else if (candidate && candidate.urlContextMetadata) {
+      // This case implies urlContextMetadata exists but urlMetadata field might be missing or empty.
+      console.warn("candidate.urlContextMetadata is present, but 'urlMetadata' field is missing or empty:", JSON.stringify(candidate.urlContextMetadata, null, 2));
+    } else {
+      // console.log("No urlContextMetadata found in the Gemini API response candidate.");
+    }
+    
+    return { text, urlContextMetadata: extractedUrlContextMetadata };
+
+  } catch (error) {
+    console.error("Error calling Gemini API:", error);
+    if (error instanceof Error) {
+      const googleError = error as any; 
+      if (googleError.message && googleError.message.includes("API key not valid")) {
+         throw new Error("Invalid API Key. Please check your GEMINI_API_KEY environment variable.");
+      }
+      if (googleError.message && googleError.message.includes("quota")) {
+        throw new Error("API quota exceeded. Please check your Gemini API quota.");
+      }
+      if (googleError.type === 'GoogleGenAIError' && googleError.message) {
+        throw new Error(`Gemini API Error: ${googleError.message}`);
+      }
+      throw new Error(`Failed to get response from AI: ${error.message}`);
+    }
+    throw new Error("Failed to get response from AI due to an unknown error.");
+  }
+};
+
+// This function now aims to get a JSON array of string suggestions.
+export const getInitialSuggestions = async (urls: string[]): Promise<GeminiResponse> => {
+  if (urls.length === 0) {
+    // This case should ideally be handled by the caller, but as a fallback:
+    return { text: JSON.stringify({ suggestions: ["Add some URLs to get topic suggestions."] }) };
+  }
+  const currentAi = getAiInstance();
+  const urlList = urls.join('\n');
+  
+  // Prompt updated to request JSON output of short questions
+  const promptText = `Based on the content of the following documentation URLs, provide 3-4 concise and actionable questions a developer might ask to explore these documents. These questions should be suitable as quick-start prompts. Return ONLY a JSON object with a key "suggestions" containing an array of these question strings. For example: {"suggestions": ["What are the rate limits?", "How do I get an API key?", "Explain model X."]}
+
+Relevant URLs:
+${urlList}`;
+
+  const contents: Content[] = [{ role: "user", parts: [{ text: promptText }] }];
+
+  try {
+    const response: GenerateContentResponse = await currentAi.models.generateContent({
+      model: MODEL_NAME,
+      contents: contents,
+      config: {
+        safetySettings: safetySettings,
+        responseMimeType: "application/json", // Request JSON output
+      },
+    });
+
+    const text = response.text; // This should be the JSON string
+    // urlContextMetadata is not expected here because tools cannot be used with responseMimeType: "application/json"
+    // const urlContextMetadata = response.candidates?.[0]?.urlContextMetadata?.urlMetadata as UrlContextMetadataItem[] | undefined;
+    
+    return { text /*, urlContextMetadata: undefined */ }; // Explicitly undefined or not included
+
+  } catch (error) {
+    console.error("Error calling Gemini API for initial suggestions:", error);
+     if (error instanceof Error) {
+      const googleError = error as any; 
+      if (googleError.message && googleError.message.includes("API key not valid")) {
+         throw new Error("Invalid API Key for suggestions. Please check your GEMINI_API_KEY environment variable.");
+      }
+      // Check for the specific error message and re-throw a more informative one if needed
+      if (googleError.message && googleError.message.includes("Tool use with a response mime type: 'application/json' is unsupported")) {
+        throw new Error("Configuration error: Cannot use tools with JSON response type for suggestions. This should be fixed in the code.");
+      }
+      throw new Error(`Failed to get initial suggestions from AI: ${error.message}`);
+    }
+    throw new Error("Failed to get initial suggestions from AI due to an unknown error.");
+  }
+};
+
