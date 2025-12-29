@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const navItems = [
-    { href: '/', label: 'Chat', icon: MessageSquare },
+    { href: '/dashboard', label: 'Chat', icon: MessageSquare },
     { href: '/vortex', label: 'Vortex', icon: Sparkles },
     { href: '/mermaid', label: 'Mermaid', icon: PenTool },
     { href: '/blueprint', label: 'Blueprint', icon: Eye },
