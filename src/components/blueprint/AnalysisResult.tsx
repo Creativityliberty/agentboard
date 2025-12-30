@@ -92,7 +92,7 @@ export const AnalysisResult: React.FC<Props> = ({ mermaidCode, uiCode, explanati
                             <div className="max-w-3xl mx-auto space-y-6">
                                 <div className="flex items-center gap-3 mb-8">
                                     <div className="h-1px flex-1 bg-white/5"></div>
-                                    <span className="text-[10px] uppercase tracking-[0.3em] font-black text-indigo-400">Rapport d'Expert</span>
+                                    <span className="text-[10px] uppercase tracking-[0.3em] font-black text-indigo-400">Rapport d&apos;Expert</span>
                                     <div className="h-1px flex-1 bg-white/5"></div>
                                 </div>
                                 <div className="text-zinc-300 leading-loose text-sm whitespace-pre-wrap font-sans first-letter:text-5xl first-letter:font-bold first-letter:mr-3 first-letter:float-left first-letter:text-white">

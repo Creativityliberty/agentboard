@@ -84,7 +84,7 @@ export const PromptForm: React.FC<Props> = ({ onGenerate, isLoading }) => {
           <select
             className={inputClass}
             value={state.riskLevel}
-            onChange={e => setState({ ...state, riskLevel: e.target.value as any })}
+            onChange={e => setState({ ...state, riskLevel: e.target.value as VortexPromptFormState['riskLevel'] })}
           >
             <option value="prudent">Prudent</option>
             <option value="balanced">Balanced</option>

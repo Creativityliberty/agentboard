@@ -49,10 +49,10 @@ export const MermaidPreview: React.FC<Props> = ({ code, onError, onSuccess }) =>
                     setSvgContent(svg);
                     onSuccess();
                 }
-            } catch (error: any) {
+            } catch (error) {
                 if (isMounted) {
                     console.error("Mermaid Render Error", error);
-                    const message = error?.message || "Erreur de syntaxe Mermaid.";
+                    const message = error instanceof Error ? error.message : "Erreur de syntaxe Mermaid.";
                     setLocalError(message);
                     onError(message);
                 }

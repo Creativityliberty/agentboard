@@ -1,14 +1,13 @@
 import { NextResponse } from 'next/server';
-import { SchemaType } from "@google/generative-ai";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { SchemaType, GoogleGenerativeAI } from "@google/generative-ai";
 import { PROMPT_TEMPLATE, ASCII_TEMPLATE, JSON_TEMPLATE } from '@/lib/vortex-prompt';
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 const genAI = new GoogleGenerativeAI(apiKey);
 
-// On utilise le modèle qui a été vérifié comme fonctionnel
-const model = genAI.getGenerativeModel({ 
-  model: "gemini-flash-latest",
+// Using gemini-1.5-flash for cost-efficiency but with strict JSON schema
+const model = genAI.getGenerativeModel({
+  model: "gemini-2.0-flash",
   generationConfig: {
     responseMimeType: "application/json",
     responseSchema: {
@@ -26,7 +25,7 @@ const model = genAI.getGenerativeModel({
 export async function POST(req: Request) {
   try {
     const formData = await req.json();
-    
+
     const userPrompt = `
       Based on the user's specifications below, generate a complete Vortex agent.
       Fill in the placeholders in the provided templates. Be creative and infer logical details where needed to make the prompt robust and coherent.
@@ -58,7 +57,7 @@ export async function POST(req: Request) {
     const result = await model.generateContent(userPrompt);
     const response = await result.response;
     const text = response.text();
-    
+
     return NextResponse.json(JSON.parse(text));
   } catch (error) {
     console.error(error);

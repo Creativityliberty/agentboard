@@ -80,8 +80,8 @@ export default function Home() {
             <div className="relative">
               <Bot className="w-12 h-12 text-indigo-400" />
             </div>
-            <h2 className="text-xl font-medium tracking-tight">Comment puis-je t'aider aujourd'hui ?</h2>
-            <p className="text-sm text-zinc-500 leading-relaxed"> Pose-moi n'importe quelle question sur le développement, la tech ou tout ce qui te passe par la tête.</p>
+            <h2 className="text-xl font-medium tracking-tight">Comment puis-je t&apos;aider aujourd&apos;hui ?</h2>
+            <p className="text-sm text-zinc-500 leading-relaxed"> Pose-moi n&apos;importe quelle question sur le développement, la tech ou tout ce qui te passe par la tête.</p>
           </div>
         )}
 

@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const apiKey = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+import { model } from "@/lib/gemini";
 
 export async function POST(req: Request) {
   try {
     const { field, context } = await req.json();
-    
+
     const prompt = `
       As an expert in AI Agent Architecture and the Vortex Intelligence Architecture, 
       provide a short, creative, and professional suggestion for the following field: "${field}".
@@ -26,10 +22,10 @@ export async function POST(req: Request) {
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text().trim();
-    
+
     // Remove any quotes Gemini might add
     const cleanText = text.replace(/^"|"$/g, '');
-    
+
     return NextResponse.json({ suggestion: cleanText });
   } catch (error) {
     console.error(error);

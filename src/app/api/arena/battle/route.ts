@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { PROMPT_TEMPLATE, ASCII_TEMPLATE, JSON_TEMPLATE } from '@/lib/vortex-prompt';
-
-const apiKey = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+import { model } from "@/lib/gemini";
+import { PROMPT_TEMPLATE } from '@/lib/vortex-prompt';
 
 export async function POST(req: Request) {
     try {
@@ -93,8 +89,8 @@ FUSED: [new system prompt text in Markdown Vortex format]
             suggestedFusedPrompt: fused
         });
 
-    } catch (error: any) {
+    } catch (error) {
         console.error("Battle Error:", error);
-        return NextResponse.json({ error: error.message || "Battle failed" }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Battle failed" }, { status: 500 });
     }
 }

@@ -46,7 +46,7 @@ export const MermaidChat: React.FC<Props> = ({ messages, onSendMessage, isLoadin
                     <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-40">
                         <Bot size={48} className="mb-4" />
                         <p className="text-sm">Demandez-moi de générer, analyser ou modifier votre diagramme.</p>
-                        <p className="text-[10px] mt-2 font-mono uppercase tracking-widest">Ex: "Transforme ça en diagramme de séquence"</p>
+                        <p className="text-[10px] mt-2 font-mono uppercase tracking-widest">Ex: &quot;Transforme ça en diagramme de séquence&quot;</p>
                     </div>
                 )}
 

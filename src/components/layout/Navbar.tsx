@@ -11,7 +11,9 @@ import {
     Swords,
     Users,
     MessageSquare,
-    LayoutDashboard
+    LayoutDashboard,
+    Layers,
+    Workflow
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +21,8 @@ const navItems = [
     { href: '/dashboard', label: 'Chat', icon: MessageSquare },
     { href: '/vortex', label: 'Vortex', icon: Sparkles },
     { href: '/mermaid', label: 'Mermaid', icon: PenTool },
+    { href: '/explorer', label: 'Explorer', icon: Layers },
+    { href: '/pocketflow', label: 'PocketFlow', icon: Workflow },
     { href: '/blueprint', label: 'Blueprint', icon: Eye },
     { href: '/semantic', label: 'Semantic', icon: Network },
     { href: '/arena', label: 'Arena', icon: Swords },

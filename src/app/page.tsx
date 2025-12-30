@@ -118,7 +118,7 @@ export default function LandingPage() {
                 <Layers className="w-6 h-6 text-purple-400" />
               </div>
               <h3 className="text-3xl font-black italic uppercase tracking-tighter">Crew Architect</h3>
-              <p className="text-zinc-500 text-sm">Orchestrez des équipes d'IA. L'un cherche, l'autre écrit, le troisième vérifie. Collaboration massive sans friction.</p>
+              <p className="text-zinc-500 text-sm">Orchestrez des équipes d&apos;IA. L&apos;un cherche, l&apos;autre écrit, le troisième vérifie. Collaboration massive sans friction.</p>
               <div className="mt-auto">
                 <Link href="/crew" className="text-[10px] font-black uppercase tracking-[0.3em] text-purple-400 flex items-center gap-2">
                   Learn Flow <ArrowRight size={12} />
@@ -137,7 +137,7 @@ export default function LandingPage() {
                 <Globe className="w-6 h-6 text-emerald-400" />
               </div>
               <h3 className="text-2xl font-black italic uppercase tracking-tighter">Vision Engine</h3>
-              <p className="text-zinc-500 text-xs leading-relaxed">Passez de l'image au code et de la doc au graphe de connaissance en une seconde.</p>
+              <p className="text-zinc-500 text-xs leading-relaxed">Passez de l&apos;image au code et de la doc au graphe de connaissance en une seconde.</p>
             </div>
           </motion.div>
 
@@ -154,7 +154,7 @@ export default function LandingPage() {
                 <Bot className="w-6 h-6 text-orange-400" />
               </div>
               <h3 className="text-3xl font-black italic uppercase tracking-tighter">Prompt Battle Arena</h3>
-              <p className="text-zinc-500 max-w-md">Laissez les IA s'affronter. Notre Supreme Auditor Vortex juge la meilleure architecture et fusionne les gagnants.</p>
+              <p className="text-zinc-500 max-w-md">Laissez les IA s&apos;affronter. Notre Supreme Auditor Vortex juge la meilleure architecture et fusionne les gagnants.</p>
             </div>
           </motion.div>
         </section>
@@ -172,7 +172,7 @@ export default function LandingPage() {
               <div className="space-y-4">
                 <div className="text-3xl font-black text-purple-500">02</div>
                 <h4 className="text-sm font-black uppercase tracking-widest">Scalability</h4>
-                <p className="text-zinc-500 text-xs">Du simple script à l'orchestration de flottes entières.</p>
+                <p className="text-zinc-500 text-xs">Du simple script à l&apos;orchestration de flottes entières.</p>
               </div>
               <div className="space-y-4">
                 <div className="text-3xl font-black text-pink-500">03</div>
@@ -241,9 +241,9 @@ export default function LandingPage() {
         <section className="text-center py-20 bg-indigo-600 rounded-[3rem] shadow-3xl shadow-indigo-900/40 relative overflow-hidden group">
           <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 opacity-50"></div>
           <div className="relative z-10 space-y-8 px-6">
-            <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter">PRÊT À FORGER L'AVENIR ?</h2>
+            <h2 className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter">PRÊT À FORGER L&apos;AVENIR ?</h2>
             <p className="text-indigo-100 text-sm md:text-base font-medium max-w-xl mx-auto opacity-80">
-              Rejoignez les pionniers de l'intelligence agentique et commencez à bâtir votre Foundry personnelle dès aujourd'hui.
+              Rejoignez les pionniers de l&apos;intelligence agentique et commencez à bâtir votre Foundry personnelle dès aujourd&apos;hui.
             </p>
             <div className="flex flex-col md:flex-row items-center justify-center gap-4">
               <Link href="/dashboard" className="w-full md:w-auto px-10 py-5 bg-white text-zinc-950 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl flex items-center justify-center gap-3">
@@ -264,7 +264,7 @@ export default function LandingPage() {
               <span className="text-sm font-black tracking-tighter uppercase italic">Nümtema Foundry</span>
             </div>
             <p className="text-[10px] text-zinc-600 font-medium uppercase tracking-widest leading-relaxed">
-              La plateforme d'intelligence architecturale <br /> propulsée par l'architecture Vortex.
+              La plateforme d&apos;intelligence architecturale <br /> propulsée par l&apos;architecture Vortex.
             </p>
           </div>
           <div>

@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { model } from "@/lib/gemini";
 
-const apiKey = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
 
 async function fetchUrlContent(url: string): Promise<string> {
   try {
@@ -20,7 +18,7 @@ async function fetchUrlContent(url: string): Promise<string> {
 export async function POST(req: Request) {
   try {
     const { query, urls } = await req.json();
-    
+
     // Fetch content from all URLs
     const contents = await Promise.all(urls.map((url: string) => fetchUrlContent(url)));
     const context = contents.join('\n\n---\n\n');
@@ -41,7 +39,7 @@ export async function POST(req: Request) {
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const text = response.text();
-    
+
     return NextResponse.json({ text });
   } catch (error) {
     console.error(error);

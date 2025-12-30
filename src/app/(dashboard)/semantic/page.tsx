@@ -32,8 +32,8 @@ export default function SemanticPage() {
             if (data.error) throw new Error(data.error);
 
             setResult(data);
-        } catch (error: any) {
-            alert("Erreur : " + error.message);
+        } catch (error) {
+            alert("Erreur : " + (error instanceof Error ? error.message : String(error)));
         } finally {
             setIsLoading(false);
         }
@@ -101,7 +101,7 @@ export default function SemanticPage() {
                                 ) : (
                                     <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-30">
                                         <Network size={64} className="mb-4" />
-                                        <p className="text-sm font-medium">Ajoutez des sources et lancez l'analyse pour visualiser votre Knowledge Graph.</p>
+                                        <p className="text-sm font-medium">Ajoutez des sources et lancez l&apos;analyse pour visualiser votre Knowledge Graph.</p>
                                     </div>
                                 )}
                             </AnimatePresence>

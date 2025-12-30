@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const apiKey = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+import { model } from "@/lib/gemini";
 
 const SYSTEM_PROMPT = `
 You are a Multi-Agent Systems Architect (inspired by CrewAI).
@@ -55,8 +51,8 @@ export async function POST(req: Request) {
         const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
         return NextResponse.json(JSON.parse(jsonString));
-    } catch (error: any) {
+    } catch (error) {
         console.error("Crew Design Error:", error);
-        return NextResponse.json({ error: error.message || "Failed to design crew" }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to design crew" }, { status: 500 });
     }
 }

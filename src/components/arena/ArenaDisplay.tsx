@@ -85,7 +85,7 @@ export const ArenaDisplay: React.FC<Props> = ({ result }) => {
 
                 <div className="bg-zinc-900/50 border border-white/10 rounded-[3rem] p-10 backdrop-blur-3xl shadow-3xl">
                     <p className="text-zinc-300 text-lg font-medium leading-loose mb-10 text-center italic">
-                        "{result.judgeAnalysis}"
+                        &quot;{result.judgeAnalysis}&quot;
                     </p>
 
                     <div className="space-y-6">

@@ -1,0 +1,155 @@
+$ eslint
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/list-models.ts
+  12:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/(dashboard)/arena/page.tsx
+   7:18  warning  'ArrowLeft' is defined but never used                            @typescript-eslint/no-unused-vars
+   7:29  warning  'Trophy' is defined but never used                               @typescript-eslint/no-unused-vars
+   8:8   warning  'Link' is defined but never used                                 @typescript-eslint/no-unused-vars
+  33:25  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  53:33  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  80:86  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/(dashboard)/blueprint/page.tsx
+   7:10  warning  'Sparkles' is defined but never used                             @typescript-eslint/no-unused-vars
+   7:20  warning  'ArrowLeft' is defined but never used                            @typescript-eslint/no-unused-vars
+   7:31  warning  'Zap' is defined but never used                                  @typescript-eslint/no-unused-vars
+   7:36  warning  'Eye' is defined but never used                                  @typescript-eslint/no-unused-vars
+   8:8   warning  'Link' is defined but never used                                 @typescript-eslint/no-unused-vars
+  37:61  error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  54:50  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/(dashboard)/crew/page.tsx
+    8:5    warning  'ArrowRight' is defined but never used                           @typescript-eslint/no-unused-vars
+   10:5    warning  'ChevronRight' is defined but never used                         @typescript-eslint/no-unused-vars
+   40:25   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+   68:36   error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+   68:103  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+   68:116  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+   68:136  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  126:151  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  126:169  error    `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/(dashboard)/dashboard/page.tsx
+   3:8   warning  'Link' is defined but never used                                 @typescript-eslint/no-unused-vars
+   6:16  warning  'Sparkles' is defined but never used                             @typescript-eslint/no-unused-vars
+   6:31  warning  'Terminal' is defined but never used                             @typescript-eslint/no-unused-vars
+   6:41  warning  'Globe' is defined but never used                                @typescript-eslint/no-unused-vars
+   6:48  warning  'Eye' is defined but never used                                  @typescript-eslint/no-unused-vars
+   6:76  warning  'Network' is defined but never used                              @typescript-eslint/no-unused-vars
+   6:85  warning  'Swords' is defined but never used                               @typescript-eslint/no-unused-vars
+  83:81  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  83:95  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  84:77  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/(dashboard)/mermaid/page.tsx
+   4:10  warning  'Header' is defined but never used     @typescript-eslint/no-unused-vars
+   9:10  warning  'Sparkles' is defined but never used   @typescript-eslint/no-unused-vars
+   9:20  warning  'ArrowLeft' is defined but never used  @typescript-eslint/no-unused-vars
+  10:8   warning  'Link' is defined but never used       @typescript-eslint/no-unused-vars
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/(dashboard)/semantic/page.tsx
+    3:27   warning  'useCallback' is defined but never used                          @typescript-eslint/no-unused-vars
+    7:19   warning  'ArrowLeft' is defined but never used                            @typescript-eslint/no-unused-vars
+    8:8    warning  'Link' is defined but never used                                 @typescript-eslint/no-unused-vars
+   35:25   error    Unexpected any. Specify a different type                         @typescript-eslint/no-explicit-any
+  104:107  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/api/arena/battle/route.ts
+   3:27  warning  'ASCII_TEMPLATE' is defined but never used  @typescript-eslint/no-unused-vars
+   3:43  warning  'JSON_TEMPLATE' is defined but never used   @typescript-eslint/no-unused-vars
+  96:21  error    Unexpected any. Specify a different type    @typescript-eslint/no-explicit-any
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/api/blueprint/analyze/route.ts
+  65:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/api/browser/chat/route.ts
+  15:12  warning  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/api/crew/design/route.ts
+  58:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/api/mermaid/chat/route.ts
+  27:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/api/semantic/map/route.ts
+  15:14  warning  'e' is defined but never used             @typescript-eslint/no-unused-vars
+  66:21  error    Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/browser/page.tsx
+  4:10  warning  'Header' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/explorer/page.tsx
+    4:10  warning  'motion' is defined but never used                               @typescript-eslint/no-unused-vars
+    6:5   warning  'Cpu' is defined but never used                                  @typescript-eslint/no-unused-vars
+   12:5   warning  'Code2' is defined but never used                                @typescript-eslint/no-unused-vars
+   15:5   warning  'Server' is defined but never used                               @typescript-eslint/no-unused-vars
+   16:5   warning  'Globe' is defined but never used                                @typescript-eslint/no-unused-vars
+   48:26  warning  'setMermaidChart' is assigned a value but never used             @typescript-eslint/no-unused-vars
+  146:45  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/app/page.tsx
+  121:76   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  121:82   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  121:96   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  140:79   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  157:69   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  175:74   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  244:110  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  246:43   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  246:125  error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  267:30   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+  267:81   error  `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/arena/ArenaDisplay.tsx
+  88:25  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+  88:48  error  `"` can be escaped with `&quot;`, `&ldquo;`, `&#34;`, `&rdquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/arena/BattleForm.tsx
+  4:38  warning  'Sparkles' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/blueprint/AnalysisResult.tsx
+   5:16   warning  'Share2' is defined but never used                               @typescript-eslint/no-unused-vars
+  95:130  error    `'` can be escaped with `&apos;`, `&lsquo;`, `&#39;`, `&rsquo;`  react/no-unescaped-entities
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/blueprint/ImageUpload.tsx
+   4:41  warning  'Copy' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         @typescript-eslint/no-unused-vars
+  35:33  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `handleFile`, but the source dependencies were []. Inferred dependency not present in source.
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/blueprint/ImageUpload.tsx:35:33
+  33 |     };
+  34 |
+> 35 |     const onPaste = useCallback((e: ClipboardEvent) => {
+     |                                 ^^^^^^^^^^^^^^^^^^^^^^^^
+> 36 |         const items = e.clipboardData?.items;
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 37 |         if (!items) return;
+     …
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 45 |         }
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 46 |     }, []);
+     | ^^^^^^ Could not preserve existing manual memoization
+  47 |
+  48 |     useEffect(() => {
+  49 |         window.addEventListener('paste', onPaste);  react-hooks/preserve-manual-memoization
+  46:8   warning  React Hook useCallback has a missing dependency: 'handleFile'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  62:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  @next/next/no-img-element
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/browser/BrowserChat.tsx
+  6:18  warning  'AnimatePresence' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/layout/Navbar.tsx
+  14:5  warning  'LayoutDashboard' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Volumes/Numtema/bun xpé/mon-agent-gemini/src/components/mermaid/MermaidChat.tsx
+  4:21  warning  'User' is defined but never used             @typescript-eslint/no-unused-vars
+  4:44  warning  'ArrowRight' is defined but never used       @typescript-eslint/no-unused-vars
+  6:18  warning  'AnimatePresence' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 84 problems (39 errors, 45 warnings)
+
+error: script "lint" exited with code 1

@@ -1,9 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
-
-const apiKey = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+import { model } from "@/lib/gemini";
 
 const SYSTEM_INSTRUCTION = `
 You are an expert Software Architect and Mermaid.js specialist.
@@ -24,7 +20,7 @@ export async function POST(req: Request) {
     try {
         const { messages, currentCode, prompt } = await req.json();
 
-        const history = messages.map((m: any) => ({
+        const history = messages.map((m: { role: string; text: string }) => ({
             role: m.role === 'user' ? 'user' : 'model',
             parts: [{ text: m.text }]
         }));

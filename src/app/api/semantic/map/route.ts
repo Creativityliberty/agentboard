@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { model } from "@/lib/gemini";
 
-const apiKey = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
 
 async function fetchUrlContent(url: string): Promise<string> {
     try {
@@ -63,8 +61,8 @@ export async function POST(req: Request) {
             summary: summaryMatch ? summaryMatch[1].trim() : "",
             concepts: conceptsMatch ? conceptsMatch[1].trim().split('\n').map(c => c.replace(/^- /, '')) : []
         });
-    } catch (error: any) {
+    } catch (error) {
         console.error("Semantic Map Error:", error);
-        return NextResponse.json({ error: error.message || "Failed to generate semantic map" }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to generate semantic map" }, { status: 500 });
     }
 }

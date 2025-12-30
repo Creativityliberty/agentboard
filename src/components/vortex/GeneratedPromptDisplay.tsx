@@ -1,15 +1,36 @@
-"use client";
-
 import React, { useState } from 'react';
 import type { GeneratedPrompt } from '@/types/vortex';
-import { Copy, Check, Terminal, FileCode, ScrollText } from 'lucide-react';
+import { Copy, Check, Terminal, FileCode, ScrollText, type LucideIcon } from 'lucide-react';
 
 interface Props {
   prompt: GeneratedPrompt;
 }
 
+type TabType = 'markdown' | 'ascii' | 'json';
+
+interface TabButtonProps {
+  id: TabType;
+  label: string;
+  icon: LucideIcon;
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
+}
+
+const TabButton = ({ id, label, icon: Icon, activeTab, setActiveTab }: TabButtonProps) => (
+  <button
+    onClick={() => setActiveTab(id)}
+    className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-lg ${activeTab === id
+        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20"
+        : "text-zinc-500 hover:text-white hover:bg-white/5"
+      }`}
+  >
+    <Icon className="w-4 h-4" />
+    {label}
+  </button>
+);
+
 export const GeneratedPromptDisplay: React.FC<Props> = ({ prompt }) => {
-  const [activeTab, setActiveTab] = useState<'markdown' | 'ascii' | 'json'>('markdown');
+  const [activeTab, setActiveTab] = useState<TabType>('markdown');
   const [copied, setCopied] = useState(false);
 
   const copyToClipboard = () => {
@@ -19,27 +40,13 @@ export const GeneratedPromptDisplay: React.FC<Props> = ({ prompt }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const TabButton = ({ id, label, icon: Icon }: { id: typeof activeTab, label: string, icon: any }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all rounded-lg ${
-        activeTab === id 
-        ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" 
-        : "text-zinc-500 hover:text-white hover:bg-white/5"
-      }`}
-    >
-      <Icon className="w-4 h-4" />
-      {label}
-    </button>
-  );
-
   return (
     <div className="flex flex-col h-full bg-zinc-900/50 border border-white/5 rounded-3xl overflow-hidden backdrop-blur-sm animate-in fade-in slide-in-from-right-4 duration-500">
       <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 bg-zinc-950/20">
         <div className="flex gap-2">
-          <TabButton id="markdown" label="Markdown" icon={FileCode} />
-          <TabButton id="ascii" label="ASCII" icon={Terminal} />
-          <TabButton id="json" label="JSON" icon={ScrollText} />
+          <TabButton id="markdown" label="Markdown" icon={FileCode} activeTab={activeTab} setActiveTab={setActiveTab} />
+          <TabButton id="ascii" label="ASCII" icon={Terminal} activeTab={activeTab} setActiveTab={setActiveTab} />
+          <TabButton id="json" label="JSON" icon={ScrollText} activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
         <button
           onClick={copyToClipboard}
@@ -49,7 +56,7 @@ export const GeneratedPromptDisplay: React.FC<Props> = ({ prompt }) => {
           {copied ? "Coopié !" : "Copier"}
         </button>
       </div>
-      
+
       <div className="flex-1 p-6 overflow-y-auto">
         <pre className="text-sm font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed selection:bg-indigo-500/30">
           {prompt[activeTab]}

@@ -11,7 +11,7 @@ interface Props {
 export const ImageUpload: React.FC<Props> = ({ onImageSelected, isLoading }) => {
     const [preview, setPreview] = useState<string | null>(null);
 
-    const handleFile = (file: File) => {
+    const handleFile = useCallback((file: File) => {
         if (!file.type.startsWith('image/')) {
             alert("Veuillez choisir une image.");
             return;
@@ -24,7 +24,7 @@ export const ImageUpload: React.FC<Props> = ({ onImageSelected, isLoading }) => 
             onImageSelected(base64);
         };
         reader.readAsDataURL(file);
-    };
+    }, [onImageSelected]);
 
     const onDrop = (e: React.DragEvent) => {
         e.preventDefault();
@@ -43,7 +43,7 @@ export const ImageUpload: React.FC<Props> = ({ onImageSelected, isLoading }) => 
                 break;
             }
         }
-    }, []);
+    }, [handleFile]);
 
     useEffect(() => {
         window.addEventListener('paste', onPaste);

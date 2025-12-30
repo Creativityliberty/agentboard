@@ -34,7 +34,7 @@ export default function BlueprintPage() {
             });
         } catch (error) {
             console.error(error);
-            alert("Erreur lors de l'analyse : " + (error as any).message);
+            alert("Erreur lors de l'analyse : " + (error instanceof Error ? error.message : String(error)));
         } finally {
             setIsLoading(false);
         }
@@ -51,7 +51,7 @@ export default function BlueprintPage() {
                         Transformez vos visuels <br /> en architectures techniques.
                     </h2>
                     <p className="text-zinc-400 text-sm max-w-lg mx-auto leading-relaxed">
-                        Téléchargez une capture d'écran, un croquis ou un design pour générer instantanément des diagrammes Mermaid et des squelettes de composants UI.
+                        Téléchargez une capture d&apos;écran, un croquis ou un design pour générer instantanément des diagrammes Mermaid et des squelettes de composants UI.
                     </p>
                 </div>
 

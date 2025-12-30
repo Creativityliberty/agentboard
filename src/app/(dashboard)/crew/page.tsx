@@ -37,8 +37,8 @@ export default function CrewPage() {
             if (data.error) throw new Error(data.error);
 
             setResult(data);
-        } catch (error: any) {
-            alert("Erreur de design : " + error.message);
+        } catch (error) {
+            alert("Erreur de design : " + (error instanceof Error ? error.message : String(error)));
         } finally {
             setIsLoading(false);
         }
@@ -65,7 +65,7 @@ export default function CrewPage() {
                         VORTEX <span className="text-purple-500">CREW</span> DESIGNER
                     </h1>
                     <p className="text-zinc-500 text-sm max-w-xl mx-auto leading-relaxed font-medium">
-                        Passez de l'agent unique à la collaboration massive. Définissez un objectif, l'IA conçoit l'équipe et le flux d'orchestration.
+                        Passez de l&apos;agent unique à la collaboration massive. Définissez un objectif, l&apos;IA conçoit l&apos;équipe et le flux d&apos;orchestration.
                     </p>
                 </div>
 
@@ -123,7 +123,7 @@ export default function CrewPage() {
                                             <div className="px-2 py-0.5 bg-purple-500/10 rounded-md text-[8px] font-black text-purple-400 border border-purple-500/20">AGENT_{i + 1}</div>
                                         </div>
                                         <p className="text-[10px] text-zinc-400 leading-relaxed font-mono opacity-80 uppercase tracking-wider mb-3">{agent.role}</p>
-                                        <p className="text-xs text-zinc-500 leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all">"{agent.backstory}"</p>
+                                        <p className="text-xs text-zinc-500 leading-relaxed italic line-clamp-2 hover:line-clamp-none transition-all">&quot;{agent.backstory}&quot;</p>
                                     </motion.div>
                                 ))}
                             </div>
